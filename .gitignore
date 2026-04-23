@@ -1,0 +1,25 @@
+# Data directories
+data/
+archived_data/
+archived_rd_csvs/
+
+# Credentials & secrets
+client_secret.json
+token.json
+noble-conduit-494019-a4-898af3768636.json
+*.json
+
+# Database
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
