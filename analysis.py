@@ -3,14 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
-
-# --- Configuration ---
-DB_PATH = r'C:\Users\grego\Projects\NALA Database Scraper\nala_rd_data.db'
-SEARCH_TERM = '5GR1' 
-
-X_KEYWORDS = ['time elapsed', 'elapsed', 'run time', 'time (h)', 'time (hrs)', 'time']
-Y_KEYWORDS = ['flux']
-EXCLUDE_WORDS = ['date', 'install', 'prep', 'system', 'clock']
+from config import DB_PATH_STR, SEARCH_TERM, X_KEYWORDS, Y_KEYWORDS, EXCLUDE_WORDS
 
 def find_column(df, keywords):
     for keyword in keywords:
@@ -28,6 +21,7 @@ def extract_number(value):
     match = re.search(r'([-+]?\d*\.?\d+)', val_str)
     if match:
         return float(match.group(1))
+    return None
     return pd.NA 
 
 def format_legend_label(raw_name):
@@ -45,7 +39,7 @@ def format_legend_label(raw_name):
     return clean_name[:45] + '...' if len(clean_name) > 45 else clean_name
 
 def query_and_plot():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH_STR)
     
     query = "SELECT name FROM sqlite_master WHERE type='table';"
     all_tables = pd.read_sql(query, conn)['name'].tolist()

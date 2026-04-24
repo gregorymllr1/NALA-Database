@@ -4,11 +4,7 @@ import glob
 import os
 import shutil
 import re
-
-# --- Configuration ---
-DB_PATH = r'C:\Users\grego\Projects\NALA Database Scraper\nala_rd_data.db'
-DOWNLOAD_DIR = r'C:\Users\grego\Projects\NALA Database Scraper\data'
-ARCHIVE_DIR = r'C:\Users\grego\Projects\NALA Database Scraper\archived_data'
+from config import DB_PATH_STR, DOWNLOAD_DIR, ARCHIVE_DIR
 
 def sanitize_table_name(workbook_name, sheet_name):
     """Creates a clean SQLite table name combining the workbook and the tab name."""
@@ -24,7 +20,7 @@ def collate_to_sqlite():
     if not os.path.exists(ARCHIVE_DIR):
         os.makedirs(ARCHIVE_DIR)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH_STR)
     # Look for Excel files now instead of CSVs
     excel_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.xlsx'))
     

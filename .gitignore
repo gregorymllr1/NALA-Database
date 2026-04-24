@@ -1,16 +1,19 @@
-# Data directories
+# Data directories (don't track large downloads)
 data/
 archived_data/
 archived_rd_csvs/
 
-# Credentials & secrets
+# Credentials & secrets (personal to each user)
 client_secret.json
 token.json
 noble-conduit-494019-a4-898af3768636.json
-*.json
 
-# Database
+# Other JSON files (but NOT Google Cloud credentials)
+# Removed blanket *.json to allow project configs if needed
+
+# Database files (except our main project database)
 *.db
+!nala_rd_data.db
 
 # Python
 __pycache__/

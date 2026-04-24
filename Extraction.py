@@ -6,20 +6,13 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-
-# --- Configuration ---
-CLIENT_SECRET_FILE = 'client_secret.json' 
-FOLDER_ID = '1x6_ALv4QUgzcHwcw5rcfx1hklEfoTE7a' 
-
-# Use a raw string (r) to prevent Windows path escaping errors
-DOWNLOAD_DIR = r'C:\Users\grego\Projects\NALA Database Scraper\data'
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+from config import CLIENT_SECRET_FILE, TOKEN_FILE, FOLDER_ID, DOWNLOAD_DIR, SCOPES
 
 def authenticate_user():
     """Authenticates using your saved browser login."""
     creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
     
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -29,7 +22,7 @@ def authenticate_user():
                 CLIENT_SECRET_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
         
-        with open('token.json', 'w') as token:
+        with open(TOKEN_FILE, 'w') as token:
             token.write(creds.to_json())
 
     service = build('drive', 'v3', credentials=creds)
