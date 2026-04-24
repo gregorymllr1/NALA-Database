@@ -4,17 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NALA R&D Data Analyzer</title>
-    <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js for plotting -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- SQL.js for reading the local SQLite database in the browser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        /* Custom scrollbar for the log window */
         .log-window::-webkit-scrollbar { width: 8px; }
         .log-window::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         .log-window::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -23,7 +18,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans h-screen flex overflow-hidden">
 
-    <!-- Sidebar / Configuration -->
     <div class="w-96 bg-white border-r border-slate-200 shadow-sm flex flex-col h-full z-10">
         <div class="p-6 border-b border-slate-100 flex items-center space-x-3 bg-blue-50">
             <i data-lucide="flask-conical" class="text-blue-600"></i>
@@ -32,14 +26,13 @@
 
         <div class="p-6 overflow-y-auto flex-1 space-y-6">
             
-            <!-- File Input -->
             <div class="space-y-2">
                 <label class="block text-sm font-semibold text-slate-700">1. Load Database</label>
                 <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:border-blue-500 transition-colors bg-slate-50 relative">
                     <div class="space-y-1 text-center">
                         <i data-lucide="database" class="mx-auto h-8 w-8 text-slate-400"></i>
                         <div class="flex text-sm text-slate-600 mt-2">
-                            <label for="db-file" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500 px-2 py-1 shadow-sm border border-slate-200">
+                            <label for="db-file" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 px-2 py-1 shadow-sm border border-slate-200">
                                 <span>Select .db file</span>
                                 <input id="db-file" name="db-file" type="file" class="sr-only" accept=".db,.sqlite">
                             </label>
@@ -49,7 +42,6 @@
                 </div>
             </div>
 
-            <!-- Search Configuration -->
             <div class="space-y-4">
                 <label class="block text-sm font-semibold text-slate-700 border-b pb-2">2. Search Parameters</label>
                 
@@ -62,6 +54,7 @@
                     <label class="block text-xs font-medium text-slate-500 mb-1">Instrument Filter (Optional)</label>
                     <input type="text" id="instrument-filter" placeholder="e.g., Nammu, Neptune, Poseidon" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700">
                 </div>
+
                 <div class="relative z-20">
                     <label class="block text-xs font-medium text-slate-500 mb-1">Feed Solution Filter (Multi-Select)</label>
                     <button id="feed-dropdown-btn" class="w-full text-left px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700 flex justify-between items-center">
@@ -69,8 +62,9 @@
                         <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400 shrink-0"></i>
                     </button>
                     <div id="feed-dropdown-panel" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 flex flex-col">
-                        <div class="p-2 border-b border-slate-200">
-                            <input type="text" id="feed-search" placeholder="Search concentrations..." class="w-full px-2 py-1 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500">
+                        <div class="p-2 border-b border-slate-200 flex space-x-2">
+                            <input type="text" id="feed-search" placeholder="Search..." class="flex-1 px-2 py-1 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500">
+                            <button id="feed-clear-btn" class="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-300 rounded-md hover:bg-slate-200 transition-colors shadow-sm focus:outline-none">Clear</button>
                         </div>
                         <div id="feed-list" class="overflow-y-auto p-2 space-y-1 flex-1 bg-slate-50">
                             <div class="text-xs text-slate-500 italic px-2 py-1">Please select a .db file first.</div>
@@ -78,7 +72,6 @@
                     </div>
                 </div>
 
-          
                 <div>
                     <label class="block text-xs font-medium text-slate-500 mb-1">X-Axis Keywords (Comma separated, priority order)</label>
                     <textarea id="x-keywords" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700">time elapsed, elapsed, run time, time (h), time (hrs), time</textarea>
@@ -97,17 +90,15 @@
         </div>
 
         <div class="p-6 border-t border-slate-200 bg-slate-50">
-            <button id="analyze-btn" class="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button id="analyze-btn" class="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <i data-lucide="line-chart" class="mr-2 h-4 w-4"></i>
                 Analyze & Plot
             </button>
         </div>
     </div>
 
-    <!-- Main Content Area -->
     <div class="flex-1 flex flex-col h-full bg-slate-100 p-6 overflow-hidden">
         
-        <!-- Chart Container -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col mb-6 relative">
             <h2 id="chart-title" class="text-lg font-bold text-slate-800 mb-4 text-center">Awaiting Data...</h2>
             <div class="relative w-full flex-1 min-h-[300px]">
@@ -115,7 +106,6 @@
             </div>
         </div>
 
-        <!-- Terminal / Log Window -->
         <div class="bg-slate-900 rounded-xl shadow-lg border border-slate-700 h-64 flex flex-col font-mono text-sm overflow-hidden shrink-0">
             <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
                 <div class="flex items-center text-slate-300">
@@ -133,29 +123,24 @@
     </div>
 
     <script>
-        // Initialize Icons
         lucide.createIcons();
 
-        // State Management
         let sqlPromise = null;
         let dbInstance = null;
         let chartInstance = null;
 
-        // UI Elements
         const fileInput = document.getElementById('db-file');
         const fileNameDisplay = document.getElementById('file-name-display');
         const analyzeBtn = document.getElementById('analyze-btn');
         const logWindow = document.getElementById('log-window');
         const chartTitle = document.getElementById('chart-title');
         
-        // Configuration Elements
         const searchTermEl = document.getElementById('search-term');
         const instrumentFilterEl = document.getElementById('instrument-filter');
         const xKeywordsEl = document.getElementById('x-keywords');
         const yKeywordsEl = document.getElementById('y-keywords');
         const excludeWordsEl = document.getElementById('exclude-words');
 
-        // Logging Function
         function log(message, type = 'info') {
             const p = document.createElement('p');
             if (type === 'error') p.className = 'text-red-400';
@@ -172,7 +157,6 @@
             logWindow.innerHTML = '<p class="text-blue-400">> Logs cleared.</p>';
         });
 
-        // Initialize SQL.js
         log("Downloading SQL engine (WebAssembly)...");
         const config = {
             locateFile: filename => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${filename}`
@@ -185,7 +169,6 @@
             log(`Failed to load SQL engine: ${err.message}`, "error");
         });
 
-        // Handle File Selection
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -202,12 +185,10 @@
             reader.onload = function() {
                 try {
                     const Uints = new Uint8Array(reader.result);
-                    // Close previous DB if it exists
                     if (dbInstance) dbInstance.close();
-                    
                     dbInstance = new sqlPromise.Database(Uints);
                     log(`Database '${file.name}' loaded into memory successfully!`, "success");
-                    populateFeedSolutions(); // Trigger the background scanner
+                    populateFeedSolutions(); 
                 } catch (error) {
                     log(`Error loading database: ${error.message}`, "error");
                 }
@@ -215,41 +196,24 @@
             reader.readAsArrayBuffer(file);
         });
 
-        // --- Data Engineering Functions ---
-
         function parseKeywords(rawString) {
             return rawString.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
         }
 
-        // Simulates the pandas logic of finding the right row headers
-        function findRowIndexByLabel(values, keywords, excludeWords) {
-            // Priority search
-            for (let kw of keywords) {
-                for (let i = 0; i < values.length; i++) {
-                    let label = String(values[i][0]).toLowerCase(); // Assume Column 0 contains the labels
-                    if (label.includes(kw)) {
-                        let isPoisoned = excludeWords.some(bw => label.includes(bw));
-                        if (!isPoisoned) return i;
-                    }
-                }
-            }
-            return -1;
-        }
-
-      function extractNumber(val) {
+        function extractNumber(val) {
             if (val === null || val === undefined || val === '') return null;
             const strVal = String(val).replace(/,/g, '');
-            // Upgraded regex safely handles scientific notation (e.g., 1.2e-6)
             const match = strVal.match(/([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/);
             if (match) return parseFloat(match[1]);
             return null;
         }
 
-        function formatLegendLabel(rawName) {
+        function formatLegendLabel(rawName, truncate = true) {
             let cleanName = rawName.replace('tbl_', '');
             cleanName = cleanName.replace(/^_+/, '');
             cleanName = cleanName.replace(/_/g, ' ');
-            return cleanName.length > 45 ? cleanName.substring(0, 45) + '...' : cleanName;
+            if (truncate) return cleanName.length > 45 ? cleanName.substring(0, 45) + '...' : cleanName;
+            return cleanName;
         }
 
         const colorPalette = [
@@ -257,7 +221,6 @@
             '#0284c7', '#ca8a04', '#dc2626', '#4f46e5', '#059669'
         ];
 
-       // Core Analysis Execution
         analyzeBtn.addEventListener('click', () => {
             if (!dbInstance) {
                 log("You must select a .db file first!", "error");
@@ -282,26 +245,50 @@
 
                 const allTables = tablesResult[0].values.map(row => row[0]);
                 let foundTerms = new Set();
+                let matchedTables = [];
                 
-                // 1. Primary Check: Filter ONLY by Lot Name (Table Name)
-                const matchedTables = allTables.filter(t => {
-                    const lowerT = t.toLowerCase();
+                for (let tableName of allTables) {
+                    const dataResult = dbInstance.exec(`SELECT * FROM "${tableName}"`);
+                    if (dataResult.length === 0) continue;
+                    
+                    const values = dataResult[0].values;
+                    let sheetSampleNames = [];
+                    
+                    for (let r = 0; r < values.length; r++) {
+                        for (let c = 0; c < values[r].length; c++) {
+                            if (String(values[r][c]).toLowerCase().includes('sample name')) {
+                                for (let col = c + 1; col < values[r].length; col++) {
+                                    let val = String(values[r][col]).trim();
+                                    if (val && val !== 'null') sheetSampleNames.push(val);
+                                }
+                            }
+                        }
+                    }
+                    
+                    let searchTargets = sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName;
+                    
                     let isSearchMatch = false;
                     searchTerms.forEach(term => {
-                        if (lowerT.includes(term)) {
+                        const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const exactMatchRegex = new RegExp(`(^|[^a-z0-9])${safeTerm}([^a-z0-9]|$)`, 'i');
+                        
+                        if (exactMatchRegex.test(searchTargets)) {
                             isSearchMatch = true;
                             foundTerms.add(term);
                         }
                     });
-                    return isSearchMatch;
-                });
+
+                    if (isSearchMatch) matchedTables.push(tableName);
+                }
 
                 searchTerms.forEach(term => {
                     if (!foundTerms.has(term)) log(`CRITICAL: Database contains 0 tables for '${term}'.`, "error");
                 });
 
                 if (matchedTables.length === 0) {
-                    log(`No tables found matching lot(s) '${searchTermsRaw}'.`, "error");
+                    let msg = `No data found for lot(s) '${searchTermsRaw}'`;
+                    if (instrumentTerms.length > 0) msg += ` on instrument(s) '${instrumentFilterEl.value}'`;
+                    log(msg + ".", "error");
                     chartTitle.textContent = `No valid data found`;
                     if (chartInstance) chartInstance.destroy();
                     return;
@@ -320,46 +307,31 @@
 
                     const columns = dataResult[0].columns;
                     const values = dataResult[0].values; 
-// --- UPGRADED: INSTRUMENT CELL SCANNER ---
+
                     if (instrumentTerms.length > 0) {
                         let isInstMatch = false;
-                        
-                        // 1. Scan the Columns (Headers) first
                         for (let c = 0; c < columns.length; c++) {
                             let colStr = String(columns[c]).toLowerCase();
-                            if (instrumentTerms.some(inst => colStr.includes(inst))) {
-                                isInstMatch = true;
-                                break;
-                            }
+                            if (instrumentTerms.some(inst => colStr.includes(inst))) { isInstMatch = true; break; }
                         }
-
-                        // 2. If not in the headers, deep scan the 2D cell grid
                         if (!isInstMatch) {
                             for (let r = 0; r < values.length; r++) {
                                 for (let c = 0; c < values[r].length; c++) {
                                     let cellStr = String(values[r][c]).toLowerCase();
-                                    if (instrumentTerms.some(inst => cellStr.includes(inst))) {
-                                        isInstMatch = true;
-                                        break;
-                                    }
+                                    if (instrumentTerms.some(inst => cellStr.includes(inst))) { isInstMatch = true; break; }
                                 }
                                 if (isInstMatch) break;
                             }
                         }
-
                         if (!isInstMatch) {
                             log(`  -> SKIPPED: Requested instrument not found in sheet.`, "warn");
-                            continue; // Move to the next table immediately
+                            continue;
                         }
                     }
-                    // --- END INSTRUMENT SCANNER ---
-                    // --- UPGRADED: FEED SOLUTION FILTER ---
+
                     const checkedFeeds = Array.from(document.querySelectorAll('.feed-checkbox:checked')).map(cb => cb.value);
-                    
                     if (checkedFeeds.length > 0) {
                         let tableFeedVals = [];
-                        
-                        // Find the feed solution for this specific table
                         for (let r = 0; r < values.length; r++) {
                             for (let c = 0; c < values[r].length; c++) {
                                 if (String(values[r][c]).toLowerCase().includes('feed solution')) {
@@ -367,28 +339,22 @@
                                 }
                             }
                         }
-                        
-                        // Check if the table's feed solution matches ANY of the user's checked boxes
                         let hasMatch = tableFeedVals.some(val => checkedFeeds.includes(val));
-                        
                         if (!hasMatch) {
                             log(`  -> SKIPPED: Feed Solution mismatch.`, "warn");
-                            continue; // Drop the table and move on
+                            continue;
                         }
                     }
-                    // --- END FEED SOLUTION FILTER ---
 
                     let xLoc = null;
                     let yLoc = null;
 
-                    // 1. Scan the initial SQLite Columns (Row -1)
                     for(let c = 0; c < columns.length; c++) {
                         let colStr = String(columns[c]).toLowerCase();
                         if(!xLoc && xKeywords.some(kw => colStr.includes(kw)) && !excludeWords.some(bw => colStr.includes(bw))) xLoc = {r: -1, c: c};
                         if(!yLoc && yKeywords.some(kw => colStr.includes(kw)) && !excludeWords.some(bw => colStr.includes(bw))) yLoc = {r: -1, c: c};
                     }
 
-                    // 2. Deep Scan the 2D Values Grid for X/Y
                     for (let r = 0; r < values.length; r++) {
                         for (let c = 0; c < values[r].length; c++) {
                             let cellStr = String(values[r][c]).toLowerCase();
@@ -399,12 +365,10 @@
 
                     let dataPoints = [];
 
-                    // Determine Orientation and Extract
                     if (xLoc && yLoc) {
                         if (xLoc.r === yLoc.r) {
                             log(`  -> [Deep Scan: Vertical] X/Y found at Col ${xLoc.c}/${yLoc.c}`);
                             let startRow = Math.max(xLoc.r, yLoc.r) + 1;
-                            
                             for (let r = startRow; r < values.length; r++) {
                                 let xNum = extractNumber(values[r][xLoc.c]);
                                 let yNum = extractNumber(values[r][yLoc.c]);
@@ -413,7 +377,6 @@
                         } else if (xLoc.c === yLoc.c && xLoc.r !== -1 && yLoc.r !== -1) {
                             log(`  -> [Deep Scan: Horizontal] X/Y found at Row ${xLoc.r}/${yLoc.r}`);
                             let startCol = Math.max(xLoc.c, yLoc.c) + 1;
-                            
                             for (let c = startCol; c < columns.length; c++) {
                                 let xNum = extractNumber(values[xLoc.r][c]);
                                 let yNum = extractNumber(values[yLoc.r][c]);
@@ -431,7 +394,8 @@
                     if (dataPoints.length > 0) {
                         log(`  -> SUCCESS: Plotted ${dataPoints.length} valid coordinates.`, "success");
                         chartDatasets.push({
-                            label: formatLegendLabel(tableName),
+                            label: formatLegendLabel(tableName, true),
+                            fullLabel: formatLegendLabel(tableName, false),
                             data: dataPoints,
                             borderColor: colorPalette[colorIndex % colorPalette.length],
                             backgroundColor: colorPalette[colorIndex % colorPalette.length],
@@ -445,7 +409,6 @@
                     }
                 }
 
-                // Render Chart or Throw Final Error
                 if (chartDatasets.length > 0) {
                     const displayTerms = searchTermsRaw.length > 40 ? searchTermsRaw.substring(0, 40) + '...' : searchTermsRaw;
                     chartTitle.textContent = `Performance Metrics for ${displayTerms}`;
@@ -463,18 +426,11 @@
                 log(`Database Error: ${err.message}`, "error");
             }
         });
-// ... Keep the renderChart function below this unchanged ...
 
-        // Chart.js Rendering Engine
         function renderChart(datasets, xLabel, yLabel) {
             const ctx = document.getElementById('mainChart').getContext('2d');
-            
-            // Destroy existing chart if it exists
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
+            if (chartInstance) chartInstance.destroy();
 
-            // Capitalize labels nicely
             const cleanXLabel = xLabel.charAt(0).toUpperCase() + xLabel.slice(1);
             const cleanYLabel = yLabel.charAt(0).toUpperCase() + yLabel.slice(1);
 
@@ -484,72 +440,62 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'nearest',
-                        intersect: false,
-                    },
+                    interaction: { mode: 'nearest', intersect: false },
                     plugins: {
                         legend: {
                             position: 'right',
-                            labels: {
-                                usePointStyle: true,
-                                boxWidth: 8,
-                                padding: 20,
-                                font: { size: 12, family: "'Inter', sans-serif" }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Experiment Source',
-                                font: { weight: 'bold' }
-                            }
+                            labels: { usePointStyle: true, boxWidth: 8, padding: 20, font: { size: 12, family: "'Inter', sans-serif" } },
+                            title: { display: true, text: 'Experiment Source', font: { weight: 'bold' } }
                         },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleFont: { size: 13 },
-                            bodyFont: { size: 13 },
-                            padding: 10,
+                        tooltip: { 
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                            titleFont: { size: 12 }, 
+                            bodyFont: { size: 11 }, 
+                            padding: 12, 
                             displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    let fullText = context.dataset.fullLabel || context.dataset.label;
+                                    let yVal = context.parsed.y;
+                                    
+                                    let words = fullText.split(' ');
+                                    let lines = [];
+                                    let currentLine = '';
+                                    for (let word of words) {
+                                        if (currentLine.length + word.length > 55) {
+                                            lines.push(currentLine.trim());
+                                            currentLine = word + ' ';
+                                        } else {
+                                            currentLine += word + ' ';
+                                        }
+                                    }
+                                    if (currentLine) lines.push(currentLine.trim());
+                                    
+                                    lines.push(`Value: ${yVal}`);
+                                    return lines;
+                                }
+                            }
                         }
                     },
                     scales: {
-                        x: {
-                            type: 'linear',
-                            title: {
-                                display: true,
-                                text: cleanXLabel + ' (Auto-Extracted)',
-                                font: { weight: 'bold', size: 14 }
-                            },
-                            grid: { color: '#f1f5f9' }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: cleanYLabel + ' (Auto-Extracted)',
-                                font: { weight: 'bold', size: 14 }
-                            },
-                            grid: { color: '#f1f5f9' }
-                        }
+                        x: { type: 'linear', title: { display: true, text: cleanXLabel + ' (Auto-Extracted)', font: { weight: 'bold', size: 14 } }, grid: { color: '#f1f5f9' } },
+                        y: { title: { display: true, text: cleanYLabel + ' (Auto-Extracted)', font: { weight: 'bold', size: 14 } }, grid: { color: '#f1f5f9' } }
                     }
                 }
             });
         }
-        // --- CUSTOM DROPDOWN & FEED SOLUTION SCANNER ---
+
         const feedBtn = document.getElementById('feed-dropdown-btn');
         const feedPanel = document.getElementById('feed-dropdown-panel');
         const feedSearch = document.getElementById('feed-search');
         const feedBtnText = document.getElementById('feed-btn-text');
+        const feedClearBtn = document.getElementById('feed-clear-btn');
 
-        // Toggle dropdown visibility
         feedBtn.addEventListener('click', () => feedPanel.classList.toggle('hidden'));
-
-        // Close if clicking outside the box
         document.addEventListener('click', (e) => {
-            if (!feedBtn.contains(e.target) && !feedPanel.contains(e.target)) {
-                feedPanel.classList.add('hidden');
-            }
+            if (!feedBtn.contains(e.target) && !feedPanel.contains(e.target)) feedPanel.classList.add('hidden');
         });
 
-        // Search bar filter logic
         feedSearch.addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
             document.querySelectorAll('.feed-item').forEach(item => {
@@ -558,12 +504,20 @@
             });
         });
 
-        // Update button text when boxes are checked
         document.getElementById('feed-list').addEventListener('change', () => {
             const checkedCount = document.querySelectorAll('.feed-checkbox:checked').length;
             if (checkedCount === 0) feedBtnText.innerText = 'All Solutions (No Filter)';
             else if (checkedCount === 1) feedBtnText.innerText = '1 Solution Selected';
             else feedBtnText.innerText = `${checkedCount} Solutions Selected`;
+        });
+
+        // --- UPGRADED: Clear All Selections Logic ---
+        feedClearBtn.addEventListener('click', (e) => {
+            e.preventDefault(); 
+            document.querySelectorAll('.feed-checkbox').forEach(cb => cb.checked = false);
+            feedSearch.value = '';
+            document.querySelectorAll('.feed-item').forEach(item => item.style.display = 'flex');
+            document.getElementById('feed-list').dispatchEvent(new Event('change'));
         });
 
         function populateFeedSolutions() {
@@ -574,7 +528,6 @@
             const allTables = tablesResult[0].values.map(row => row[0]);
             let uniqueFeeds = new Set();
             
-            // Fast 2D scan across all tables
             for (let tableName of allTables) {
                 const dataResult = dbInstance.exec(`SELECT * FROM "${tableName}"`);
                 if (dataResult.length === 0) continue;
@@ -583,7 +536,6 @@
                 for (let r = 0; r < values.length; r++) {
                     for (let c = 0; c < values[r].length; c++) {
                         if (String(values[r][c]).toLowerCase().includes('feed solution')) {
-                            // Grab the value immediately to the right (Transposed layout)
                             if (c + 1 < values[r].length) {
                                 let val = String(values[r][c+1]).trim();
                                 if (val && val !== 'null') uniqueFeeds.add(val);
@@ -593,7 +545,6 @@
                 }
             }
             
-            // Build the UI Checkboxes
             const feedList = document.getElementById('feed-list');
             feedList.innerHTML = ''; 
             let sortedFeeds = Array.from(uniqueFeeds).sort();
@@ -605,14 +556,13 @@
             }
             
             sortedFeeds.forEach(feed => {
-                const safeFeed = feed.replace(/"/g, '&quot;'); // Escape weird chemistry strings
+                const safeFeed = feed.replace(/"/g, '&quot;');
                 const div = document.createElement('div');
                 div.className = 'flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer feed-item';
                 div.innerHTML = `
                     <input type="checkbox" value="${safeFeed}" class="feed-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2 cursor-pointer">
                     <label class="text-xs text-slate-700 truncate w-full cursor-pointer" title="${safeFeed}">${feed}</label>
                 `;
-                // Allow clicking the text to check the box
                 div.addEventListener('click', (e) => {
                     if(e.target.tagName !== 'INPUT') {
                         const cb = div.querySelector('input');
