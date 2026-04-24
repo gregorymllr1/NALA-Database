@@ -20,3 +20,71 @@ If you are here to view and query the R&D data, follow these steps. The database
 ```bash
 git clone <repository-url>
 cd "NALA-Database"
+python -m venv .venv
+
+# Windows:
+.venv\Scripts\activate
+
+# macOS/Linux:
+source .venv/bin/activate
+pip install -r requirements.txt
+# Windows:
+start dashboard.html  
+
+# macOS:
+open dashboard.html
+
+##🛠️ For Database Maintainers
+Only execute these steps if you are responsible for updating the central R&D database.
+
+When new weekly data arrives on Google Drive, you must update the database and push the changes to the team.
+
+Automated Update (Recommended)
+This master script runs the extraction, ingestion, and Git workflow (add, commit, push) in one step.
+
+# Windows:
+.venv\Scripts\python.exe weekly_update.py
+
+# macOS/Linux (ensure venv is activated):
+python weekly_update.py
+
+# 1. Extract Excel files from Google Drive
+python Extraction.py
+
+# 2. Ingest downloaded files into the database
+python ingestion.py
+
+# 3. Commit the updated database to share with the team
+git add nala_rd_data.db
+git commit -m "Updated database: [Brief description of new data]"
+git push
+
+.
+├── nala_rd_data.db          # ✓ Main SQLite database (distributed with project)
+├── dashboard.html           # ✓ Web dashboard for data queries
+├── requirements.txt         # ✓ Python dependencies
+├── config.py                # ✓ Centralized environment variables and paths
+├── README.md                # ✓ Core documentation
+│
+├── Extraction.py            # [Maintainer] Download pipeline from Google Drive
+├── ingestion.py             # [Maintainer] Database update script
+├── analysis.py              # [Maintainer] Report generation script
+├── weekly_update.py         # [Maintainer] Automated ETL master script
+├── MAINTAINER.md            # [Maintainer] Detailed administrative instructions
+│
+└── Data Directories         # (Auto-created during ETL, not tracked by git)
+    ├── data/                # Downloaded raw Excel files
+    ├── archived_data/       # Processed Excel files
+    └── archived_rd_csvs/    # CSV backups
+
+##🐛 Troubleshooting
+Issue: ModuleNotFoundError when attempting to run the dashboard or scripts.
+Solution: Your virtual environment is likely deactivated or missing packages.
+
+# Reactivate the environment
+.venv\Scripts\activate      # Windows
+source .venv/bin/activate   # macOS/Linux
+
+# Reinstall requirements
+pip install -r requirements.txt
+
