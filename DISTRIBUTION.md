@@ -2,13 +2,20 @@
 
 This document outlines how to properly distribute the NALA Database Scraper project to your team.
 
+## Key Concept
+
+- **Regular team members**: Use the dashboard to query data
+- **Master/Maintainer (you)**: Keep database updated with new weekly R&D data
+- **Database file**: Distributed with project, shared via Git
+
 ## Before Distribution
 
 - [x] All paths refactored to use `config.py` (relative paths)
 - [x] `requirements.txt` created with all dependencies
 - [x] `.gitignore` updated to include `nala_rd_data.db` (tracked) and exclude credentials
 - [x] Comprehensive README.md with quick start guide
-- [x] SETUP_FOR_TEAM.md with detailed team onboarding
+- [x] SETUP_FOR_TEAM.md with dashboard setup (simple, 5 minutes)
+- [x] MAINTAINER.md with extraction/ingestion guide (for you only)
 - [x] Database file `nala_rd_data.db` committed to Git
 - [x] Sensitive credentials excluded from Git (.gitignore)
 
@@ -49,27 +56,30 @@ git archive --format zip --output NALA-Database-Distribution.zip HEAD
 After cloning/extracting, each team member should:
 
 1. **Read README.md** - Project overview and quick start
-2. **Follow SETUP_FOR_TEAM.md** - Complete setup instructions
-3. **Verify installation** - Run test commands
-4. **Complete Google Drive setup** - Set up personal Google OAuth credentials
-5. **Start working** - Extract, ingest, and analyze data
+2. **Follow SETUP_FOR_TEAM.md** - 5-minute setup to use dashboard
+3. **Open dashboard.html** - Start querying R&D data
+
+That's it! Regular team members don't need Python knowledge or Google Drive setup.
 
 ## Key Files to Distribute
 
 | File | Purpose | Include | Notes |
 |------|---------|---------|-------|
-| `*.py` | Main scripts | ✓ | Core functionality |
+| `dashboard.html` | Interactive UI | ✓ | What users interact with |
+| `analysis.py` | Analysis tools | ✓ | Maintainer uses this |
+| `Extraction.py` | Google Drive access | ✓ | Maintainer only |
+| `ingestion.py` | Database updates | ✓ | Maintainer only |
 | `requirements.txt` | Dependencies | ✓ | Install with `pip install -r requirements.txt` |
 | `config.py` | Configuration | ✓ | Centralized paths and settings |
 | `nala_rd_data.db` | Database | ✓ | Team shared database |
-| `*.json` (credentials) | Auth files | ✗ | Each member creates their own |
+| `*.json` (credentials) | Auth files | ✗ | Maintainer only |
 | `.venv/` | Virtual env | ✗ | Each member creates with `python -m venv .venv` |
-| `data/` | Downloaded files | ✗ | Local to each member |
+| `data/` | Downloaded files | ✗ | Local to maintainer only |
 | `.git/` | Version control | ~ | Include only if using Git distribution |
 
 ## Post-Distribution Workflow
 
-### First Time Setup
+### First Time Setup - Regular Team Members
 ```bash
 git clone <repo>
 cd NALA-Database
@@ -77,26 +87,41 @@ python -m venv .venv
 .venv\Scripts\activate  # Windows
 source .venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
-# Follow SETUP_FOR_TEAM.md for Google Drive auth
+start dashboard.html  # Windows - Open dashboard to query data
 ```
 
-### Regular Workflow
+### First Time Setup - Maintainer (You)
 ```bash
-# Get latest database
+git clone <repo>
+cd NALA-Database
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # macOS/Linux
+pip install -r requirements.txt
+# Follow MAINTAINER.md for Google Drive setup
+```
+
+### Team Member Regular Workflow
+```bash
+# When maintainer pushes new data, pull to update
 git pull
 
-# Extract new data
+# Refresh dashboard.html in browser to see new data
+start dashboard.html  # Use dashboard to query data
+```
+
+### Maintainer (You) Regular Workflow
+```bash
+# Weekly: When new R&D data arrives, extract it
+git pull
 python Extraction.py
 
-# Ingest into database
+# Ingest the new data into the database
 python ingestion.py
 
-# Analyze and visualize
-python analysis.py
-
-# Share updates with team
+# Share updated database with team
 git add nala_rd_data.db
-git commit -m "Updated database with latest data"
+git commit -m "Updated database: Added Q2 2026 fouling tests"
 git push
 ```
 
@@ -119,9 +144,10 @@ git push
 
 ### Issue: Each member needs different credentials
 **Solution**:
-- This is expected! Each member creates their own `client_secret.json` and `token.json`
+- This is NOT expected for regular team members! They don't need credentials.
+- Only maintainer needs `client_secret.json` and `token.json`
 - These are in `.gitignore` and not shared
-- See SETUP_FOR_TEAM.md step 2 for Google Drive setup
+- See MAINTAINER.md for credential setup
 
 ## Version Control Best Practices
 
@@ -139,12 +165,6 @@ git push
 
 ## Support for Distributed Team
 
-1. **Documentation**: README.md and SETUP_FOR_TEAM.md
-2. **Code comments**: Docstrings in each .py file
+1. **For regular team members**: README.md and SETUP_FOR_TEAM.md (5 min setup)
+2. **For maintainer**: MAINTAINER.md (detailed extraction/ingestion guide)
 3. **Config centralization**: All paths in config.py
-4. **Database sharing**: nala_rd_data.db in version control
-
-For questions during setup, team members should:
-- Check README.md first
-- Check SETUP_FOR_TEAM.md troubleshooting section
-- Contact project lead for Google Drive folder access issues

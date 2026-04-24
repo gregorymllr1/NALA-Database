@@ -61,10 +61,6 @@ Test each component:
 # Test database access
 python -c "import sqlite3; print(sqlite3.connect('nala_rd_data.db').execute('SELECT count(name) FROM sqlite_master WHERE type=\"table\"').fetchone())"
 
-# Test data analysis
-python analysis.py
-
-# Test data ingestion (after running Extraction.py)
 python ingestion.py
 ```
 
@@ -79,11 +75,6 @@ cat .gitignore
 
 You should see:
 - `client_secret.json` ✓
-- `token.json` ✓
-- `*.db` should NOT be here (we want to track nala_rd_data.db)
-
-The database file (`nala_rd_data.db`) is intentionally committed to Git and will be shared with all team members.
-
 ## Troubleshooting
 
 ### Issue: "ModuleNotFoundError: No module named 'google'"
@@ -118,9 +109,6 @@ pkill -f python
 
 ## Regular Workflow
 
-After setup, the typical workflow is:
-
-1. **Pull latest changes** from Git to get the newest database
    ```bash
    git pull
    ```

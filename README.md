@@ -1,130 +1,127 @@
 # NALA Database Scraper
 
-A Python application for scraping Research & Development data from Google Drive, organizing it into a SQLite database, and generating analysis visualizations.
+A Python application for managing Research & Development data. The project includes an interactive dashboard for querying the SQLite database, with tools for database maintenance and updates.
 
-## Project Overview
+## Quick Overview
 
-- **Extraction.py**: Downloads Excel files from Google Drive
-- **ingestion.py**: Parses Excel files and ingests them into the SQLite database
-- **analysis.py**: Analyzes data and generates visualizations
-- **dashboard.html**: Interactive dashboard for data visualization
+- **Dashboard** (for all users): Interactive web interface to query R&D data
+- **Database** (included): Pre-built SQLite database with all ingested R&D data
+- **Extraction & Ingestion** (for maintainer only): Update the database with new weekly R&D data
 
-## Quick Start
+## For Regular Team Members: Using the Dashboard
 
-### 1. Prerequisites
-- Python 3.8+
-- Git
+### Quick Start (5 minutes)
 
-### 2. Setup Instructions
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone <repository-url>
 cd "NALA-Database"
 
-# Create virtual environment
+# 2. Create and activate virtual environment
 python -m venv .venv
 
-# Activate virtual environment
-# On Windows:
+# Windows:
 .venv\Scripts\activate
-# On macOS/Linux:
+# macOS/Linux:
 source .venv/bin/activate
 
-# Install dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
+
+# 4. Run the dashboard
+# Open dashboard.html in a web browser or use:
+start dashboard.html  # Windows
+open dashboard.html   # macOS
 ```
 
-### 3. Google Drive Setup (First Time Only)
+The dashboard connects to `nala_rd_data.db` and displays all available R&D data.
 
-See [SETUP_FOR_TEAM.md](SETUP_FOR_TEAM.md) for detailed Google Drive authentication setup.
+## For Database Maintainer: Updating the Database
 
-### 4. Usage
+### When New Weekly Data Arrives
 
-**Extract data from Google Drive:**
 ```bash
+# 1. Extract Excel files from Google Drive
 python Extraction.py
-```
 
-**Ingest downloaded Excel files into database:**
-```bash
+# 2. Ingest files into the database
 python ingestion.py
+
+# 3. Commit updated database to share with team
+git add nala_rd_data.db
+git commit -m "Updated database: [brief description of new data]"
+git push
 ```
 
-**Run analysis and generate visualizations:**
-```bash
-python analysis.py
-```
+See [MAINTAINER.md](MAINTAINER.md) for detailed maintainer instructions.
 
 ## Project Structure
 
 ```
 .
-├── nala_rd_data.db          # Main SQLite database (included in distribution)
-├── client_secret.json        # Google OAuth credentials (create on first setup)
-├── token.json                # Google OAuth token (generated after first auth)
-├── requirements.txt          # Python dependencies
-├── config.py                 # Configuration and paths
-├── Extraction.py             # Google Drive downloader
-├── ingestion.py              # Database ingester
-├── analysis.py               # Data analysis and visualization
-├── dashboard.html            # Web dashboard
-├── data/                     # Downloaded Excel files (auto-created)
-├── archived_data/            # Archived processed files (auto-created)
-└── archived_rd_csvs/         # Archive of CSV exports (auto-created)
+├── nala_rd_data.db          # ✓ Main SQLite database (distributed with project)
+├── dashboard.html           # ✓ Web dashboard for data queries (for all users)
+├── requirements.txt         # ✓ Python dependencies
+├── config.py                # ✓ Centralized paths and settings
+├── README.md                # ✓ This file
+│
+├── Extraction.py            # For maintainer: Download from Google Drive
+├── ingestion.py             # For maintainer: Update database
+├── analysis.py              # For maintainer: Generate reports
+├── MAINTAINER.md            # For maintainer: Detailed instructions
+│
+└── [Directories - not needed for regular use]
+	 ├── data/                # Downloaded Excel files (auto-created)
+	 ├── archived_data/       # Processed files (auto-created)
+	 └── archived_rd_csvs/    # CSV archives (auto-created)
 ```
 
-## Database
+## For All Users
 
-The project includes `nala_rd_data.db`, a SQLite database containing all ingested R&D data. This database is version-controlled and distributed with the project.
+The database is already built and included. You should:
 
-### Updating the Database
+1. **Install dependencies** (one-time):
+	```bash
+	pip install -r requirements.txt
+	```
 
-1. Run `Extraction.py` to download new files from Google Drive
-2. Run `ingestion.py` to process and add them to the database
-3. Commit changes to `nala_rd_data.db` to Git for team synchronization
+2. **Access the dashboard** to query data
+
+3. **Update when notified** (pull latest from Git):
+	```bash
+	git pull
+	```
+
+The database is automatically updated by the maintainer and shared via Git.
 
 ## Configuration
 
 All paths and settings are centralized in `config.py`:
 
-- `DB_PATH`: Location of SQLite database
-- `DATA_DIR`: Downloaded files directory
-- `ARCHIVE_DIR`: Archived data directory
-- `FOLDER_ID`: Google Drive folder for data extraction
-- `SEARCH_TERM`: Default search term for analysis
+- `DB_PATH`: SQLite database location
+- `SEARCH_TERM`: Default analysis term
+- Other settings used by extraction/ingestion scripts
 
-Modify `config.py` to customize behavior for your environment.
 
-## Common Issues
+## Troubleshooting
 
-**"module not found" errors**: Ensure you've activated the virtual environment and installed requirements:
+**"ModuleNotFoundError" when running dashboard:**
 ```bash
+# Ensure virtual environment is activated
 .venv\Scripts\activate
+# Install requirements
 pip install -r requirements.txt
 ```
 
-**Google Drive authentication fails**: Delete `token.json` and run `Extraction.py` again to re-authenticate.
-
-**Database locked**: Ensure no other process is using `nala_rd_data.db`. Close other Python instances and try again.
-
-## Team Collaboration
-
-1. Each team member clones the repository
-2. First time: Complete Google Drive setup in [SETUP_FOR_TEAM.md](SETUP_FOR_TEAM.md)
-3. Run scripts to extract/ingest new data
-4. Commit database changes for team synchronization
-
-## Version Control Notes
-
-- `client_secret.json` and `token.json` are not tracked (in `.gitignore`)
-- Each team member needs their own Google OAuth credentials
-- `nala_rd_data.db` IS tracked and shared across the team
-- The `data/`, `archived_data/`, and `archived_rd_csvs/` directories are not tracked to avoid large file sync issues
+**Database seems outdated:**
+```bash
+# Pull the latest version
+git pull
+```
 
 ## Support
 
-For issues or questions, refer to:
-- Individual script docstrings and comments
-- Google Drive API documentation: https://developers.google.com/drive/api
-- SQLite documentation: https://www.sqlite.org/docs.html
+- **For dashboard issues**: Check dashboard.html source code
+- **For setup issues**: Refer to installation steps above
+- **For database updates**: Contact the database maintainer

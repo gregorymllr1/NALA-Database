@@ -2,6 +2,12 @@
 
 Your NALA Database Scraper project is now fully prepared for distribution to your team! Here's what has been set up:
 
+## Key Model
+
+- **Regular team members**: Use dashboard.html to query pre-built database (5 min setup)
+- **You (Maintainer)**: Extract/ingest new R&D data weekly to keep database updated
+- **Database file**: Distributed with project, synchronized via Git
+
 ## ✅ What Was Created/Updated
 
 ### 1. **requirements.txt**
@@ -19,27 +25,34 @@ Centralized configuration file that replaces all hardcoded paths. Benefits:
 
 ### 3. **README.md**
 Main documentation covering:
-- Project overview and structure
-- Quick start setup (5 minutes to running)
-- How the scripts work
-- Configuration guide
-- Troubleshooting common issues
+- Project overview for all users
+- Quick start for dashboard (5 minutes)
+- Reference to maintainer guide
+- Configuration notes
 
 ### 4. **SETUP_FOR_TEAM.md**
-Detailed onboarding guide including:
-- Step-by-step Python environment setup
-- Google Drive authentication walkthrough
-- Verification tests to ensure everything works
-- Troubleshooting for common setup issues
-- Regular workflow for team collaboration
+Simplified setup guide for regular team members:
+- Clone repository
+- Install Python dependencies
+- Open dashboard.html
+- Done! No Google Drive setup needed
+- Troubleshooting for dashboard issues
 
-### 5. **DISTRIBUTION.md**
+### 5. **MAINTAINER.md** (NEW!)
+Comprehensive guide for you to maintain the database:
+- One-time Google Drive credential setup
+- Weekly extraction/ingestion workflow
+- Database querying and troubleshooting
+- Disaster recovery procedures
+- Team communication best practices
+
+### 6. **DISTRIBUTION.md**
 Guide on how to distribute this project:
 - Distribution methods (Git vs ZIP)
-- Checklist of what to include/exclude
-- Post-distribution team workflow
+- Roles clarification (users vs maintainer)
+- Setup workflows for each role
+- Troubleshooting by role
 - Best practices for version control
-- Support guide for team members
 
 ### 6. **Updated Scripts**
 All Python scripts refactored:
@@ -48,12 +61,15 @@ All Python scripts refactored:
 - `analysis.py` - Uses config for database and search parameters
 - All hardcoded Windows paths removed ✓
 
-### 7. **Updated .gitignore**
+### 7. **dashboard.html** (UNCHANGED)
+Your interactive web dashboard - this is what regular users interact with daily
+
+### 8. **Updated .gitignore**
 - ✓ `client_secret.json` & `token.json` excluded (personal credentials)
 - ✓ `nala_rd_data.db` NOW INCLUDED (shared database)
 - ✓ Data directories excluded (too large to sync)
 
-### 8. **nala_rd_data.db**
+### 9. **nala_rd_data.db**
 Your database is now committed to Git and will be distributed with the project!
 
 ## 🚀 How to Distribute
@@ -77,15 +93,15 @@ git archive --format zip --output NALA-Database-Distribution.zip HEAD
 
 1. **Clone/Extract** the project
 2. **Read README.md** for overview
-3. **Follow SETUP_FOR_TEAM.md** for setup (includes Google Drive auth)
-4. **Verify installation** with provided test commands
-5. **Start extracting/ingesting** data into the shared database
-6. **Commit database updates** to keep team synchronized
+3. **Follow SETUP_FOR_TEAM.md** for quick setup (5 minutes)
+4. **Open dashboard.html** to query data
+5. **Pull updates** when you push new data
 
 ## 🔒 Security Notes
 
 ✓ All personal credentials (Google OAuth) are git-ignored
-✓ Each team member creates their own `client_secret.json`
+✓ Only YOU create `client_secret.json` (for extraction/ingestion)
+✓ Regular team members don't need any credentials
 ✓ No sensitive data in version control
 ✓ Database file (no credentials) is safely shared
 
@@ -93,10 +109,11 @@ git archive --format zip --output NALA-Database-Distribution.zip HEAD
 
 - [x] **Portable** - Works on Windows, Mac, Linux
 - [x] **Reproducible** - All dependencies in requirements.txt
-- [x] **Documented** - Three comprehensive documentation files
+- [x] **Documented** - Four comprehensive documentation files
 - [x] **Shareable** - Database included, credentials excluded
 - [x] **Maintainable** - Centralized config management
-- [x] **Team-friendly** - Clear onboarding guide
+- [x] **Team-friendly** - Clear role separation (users vs maintainer)
+- [x] **Low-barrier entry** - Regular users just open dashboard (5 min)
 
 ## 📁 File Size Estimate
 
@@ -117,9 +134,14 @@ The project is ready to distribute:
 
 3. **For team members**:
    - Direct them to README.md first
-   - They'll follow SETUP_FOR_TEAM.md for initial setup
-   - Refer them to DISTRIBUTION.md if they need help
+   - They'll follow SETUP_FOR_TEAM.md for 5-minute setup
+   - They open dashboard.html and start querying data!
+
+4. **For you (Maintainer)**:
+   - Reference MAINTAINER.md for your weekly workflow
+   - Extract new data weekly with Extraction.py
+   - Ingest with ingestion.py
+   - Commit and push to keep team synchronized
 
 ---
 
-**Congratulations!** Your project is now ready for team distribution. All hardcoded paths have been replaced with a portable configuration system, comprehensive documentation is in place, and your database is safely shared via Git.
