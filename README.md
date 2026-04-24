@@ -20,6 +20,10 @@ If you are here to view and query the R&D data, follow these steps. The database
 ```bash
 git clone <repository-url>
 cd "NALA-Database"
+```
+
+**2. Create and activate a virtual environment**
+```bash
 python -m venv .venv
 
 # Windows:
@@ -27,27 +31,47 @@ python -m venv .venv
 
 # macOS/Linux:
 source .venv/bin/activate
+```
+
+**3. Install dependencies**
+```bash
 pip install -r requirements.txt
+```
+
+**4. Run the dashboard**
+The dashboard connects directly to `nala_rd_data.db`. Open it using your system's default browser:
+```bash
 # Windows:
 start dashboard.html  
 
 # macOS:
-open dashboard.html
+open dashboard.html   
+```
 
-##🛠️ For Database Maintainers
-Only execute these steps if you are responsible for updating the central R&D database.
+> **Note on Updates:** When the maintainer notifies the team of new data, simply run `git pull` in your terminal to fetch the latest version of the database.
+
+---
+
+## 🛠️ For Database Maintainers
+
+*Only execute these steps if you are responsible for updating the central R&D database.*
 
 When new weekly data arrives on Google Drive, you must update the database and push the changes to the team.
 
-Automated Update (Recommended)
+### Automated Update (Recommended)
 This master script runs the extraction, ingestion, and Git workflow (add, commit, push) in one step.
-
+```bash
 # Windows:
 .venv\Scripts\python.exe weekly_update.py
 
 # macOS/Linux (ensure venv is activated):
-python weekly_update.py
+python weekly_update.py 
+```
 
+### Manual ETL Pipeline
+If you need granular control over the update process or need to debug:
+
+```bash
 # 1. Extract Excel files from Google Drive
 python Extraction.py
 
@@ -58,7 +82,14 @@ python ingestion.py
 git add nala_rd_data.db
 git commit -m "Updated database: [Brief description of new data]"
 git push
+```
+*(For deeper administrative details and report generation via `analysis.py`, refer to `MAINTAINER.md`)*
 
+---
+
+## 📁 Project Architecture
+
+```text
 .
 ├── nala_rd_data.db          # ✓ Main SQLite database (distributed with project)
 ├── dashboard.html           # ✓ Web dashboard for data queries
@@ -76,15 +107,39 @@ git push
     ├── data/                # Downloaded raw Excel files
     ├── archived_data/       # Processed Excel files
     └── archived_rd_csvs/    # CSV backups
+```
 
-##🐛 Troubleshooting
-Issue: ModuleNotFoundError when attempting to run the dashboard or scripts.
-Solution: Your virtual environment is likely deactivated or missing packages.
+---
 
+## ⚙️ Configuration
+
+All paths, thresholds, and settings are centralized in **`config.py`**. 
+* `DB_PATH`: Points to the local SQLite database location.
+* `SEARCH_TERM`: Sets the default analysis term for queries.
+* *Other settings dictate the behavior of the extraction and ingestion scripts.*
+
+---
+
+## 🐛 Troubleshooting
+
+**Issue:** `ModuleNotFoundError` when attempting to run the dashboard or scripts.
+**Solution:** Your virtual environment is likely deactivated or missing packages.
+```bash
 # Reactivate the environment
 .venv\Scripts\activate      # Windows
 source .venv/bin/activate   # macOS/Linux
 
 # Reinstall requirements
 pip install -r requirements.txt
+```
 
+**Issue:** The dashboard data seems outdated or is missing recent experiments.
+**Solution:** Pull the latest database version from the repository:
+```bash
+git pull
+```
+
+## 🤝 Support
+* **Dashboard UI Issues:** Inspect the `dashboard.html` source code.
+* **Setup/Environment Issues:** Revisit the "Quick Start" installation steps.
+* **Missing Data/Database Errors:** Contact the designated Database Maintainer.
