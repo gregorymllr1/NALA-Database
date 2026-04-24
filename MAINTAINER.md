@@ -49,6 +49,38 @@ This will:
 
 ## Weekly Workflow
 
+### One-Command Automation (Recommended)
+
+Run the full weekly flow with one command:
+
+```bash
+.venv\Scripts\python.exe weekly_update.py  # Windows
+python weekly_update.py                      # macOS/Linux (with venv activated)
+```
+
+This script will automatically:
+1. Pull latest changes from Git (`git pull --rebase`)
+2. Run extraction (`Extraction.py`)
+3. Run ingestion (`ingestion.py`)
+4. Commit only `nala_rd_data.db`
+5. Push to remote
+
+Useful options:
+
+```bash
+# Preview everything safely (no changes made)
+.venv\Scripts\python.exe weekly_update.py --dry-run  # Windows
+python weekly_update.py --dry-run                      # macOS/Linux
+
+# Customize commit message
+.venv\Scripts\python.exe weekly_update.py --message "Updated database: Added Week 17 R&D runs"
+
+# Commit locally but do not push
+.venv\Scripts\python.exe weekly_update.py --skip-push
+```
+
+If there are no database changes, the script exits cleanly with "Nothing to commit".
+
 ### 1. Extract New Data from Google Drive
 
 ```bash
@@ -288,10 +320,20 @@ git commit -m "Updated database: Added Q2 2026 membrane fouling tests (5 new exp
 
 Suggested schedule:
 - **Weekly**: Check for new data every Friday afternoon
-- **Extract**: Run `Extraction.py` if files available
-- **Ingest**: Run `ingestion.py` immediately after
-- **Commit**: Push to Git same day
+- **Run**: `.venv\Scripts\python.exe weekly_update.py`
 - **Notify**: Tell team new data is available
+
+### Optional: Schedule It in Windows Task Scheduler
+
+If you want this to run automatically every Friday:
+
+1. Open **Task Scheduler**
+2. Create a new Basic Task (Weekly, Friday)
+3. Program/script: path to `.venv\Scripts\python.exe`
+4. Add arguments: `weekly_update.py`
+5. Start in: project folder path
+
+For reliability, run `python weekly_update.py --dry-run` manually first.
 
 ## Disaster Recovery
 

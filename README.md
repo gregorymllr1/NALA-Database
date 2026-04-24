@@ -41,6 +41,17 @@ The dashboard connects to `nala_rd_data.db` and displays all available R&D data.
 
 ### When New Weekly Data Arrives
 
+Fast path (recommended):
+
+```bash
+.venv\Scripts\python.exe weekly_update.py  # Windows
+python weekly_update.py                      # macOS/Linux (with venv activated)
+```
+
+This runs extraction, ingestion, and git add/commit/push for `nala_rd_data.db`.
+
+Manual path:
+
 ```bash
 # 1. Extract Excel files from Google Drive
 python Extraction.py
