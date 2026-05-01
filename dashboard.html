@@ -95,10 +95,16 @@
         </div>
 
         <div class="p-6 border-t border-slate-200 bg-slate-50">
-            <button id="analyze-btn" class="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                <i data-lucide="line-chart" class="mr-2 h-4 w-4"></i>
-                Analyze & Plot
-            </button>
+            <div class="grid grid-cols-2 gap-3">
+                <button id="analyze-btn" class="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="line-chart" class="mr-2 h-4 w-4"></i>
+                    Analyze & Plot
+                </button>
+                <button id="export-csv-btn" disabled class="w-full flex justify-center items-center py-2.5 px-4 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="download" class="mr-2 h-4 w-4"></i>
+                    Export CSV
+                </button>
+            </div>
         </div>
     </div>
 
@@ -139,10 +145,14 @@
         let sqlPromise = null;
         let dbInstance = null;
         let chartInstance = null;
+        let lastRenderedDatasets = [];
+        let lastXLabel = '';
+        let lastYLabel = '';
 
         const fileInput = document.getElementById('db-file');
         const fileNameDisplay = document.getElementById('file-name-display');
         const analyzeBtn = document.getElementById('analyze-btn');
+        const exportCsvBtn = document.getElementById('export-csv-btn');
         const logWindow = document.getElementById('log-window');
         const chartTitle = document.getElementById('chart-title');
         
@@ -227,6 +237,71 @@
             return cleanName;
         }
 
+        function resetRenderedDataState() {
+            lastRenderedDatasets = [];
+            lastXLabel = '';
+            lastYLabel = '';
+            exportCsvBtn.disabled = true;
+        }
+
+        function escapeCsvValue(value) {
+            const str = String(value ?? '');
+            if (str.includes('"') || str.includes(',') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+
+        function buildExportFileName() {
+            const safeTitle = (chartTitle.textContent || 'nala_results')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '')
+                .slice(0, 60);
+            const datePart = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+            return `${safeTitle || 'nala_results'}_${datePart}.csv`;
+        }
+
+        function exportRenderedDataToCsv() {
+            if (!lastRenderedDatasets.length) {
+                log('No plotted data available to export.', 'warn');
+                return;
+            }
+
+            const header = ['series', 'x_axis', 'x_value', 'y_axis', 'y_value'];
+            const rows = [header.join(',')];
+
+            lastRenderedDatasets.forEach((dataset) => {
+                const series = dataset.fullLabel || dataset.label || '';
+                (dataset.data || []).forEach((point) => {
+                    const row = [
+                        escapeCsvValue(series),
+                        escapeCsvValue(lastXLabel),
+                        escapeCsvValue(point.x),
+                        escapeCsvValue(lastYLabel),
+                        escapeCsvValue(point.y)
+                    ];
+                    rows.push(row.join(','));
+                });
+            });
+
+            const csvContent = rows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+
+            link.href = url;
+            link.setAttribute('download', buildExportFileName());
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            log(`Export complete. Saved ${rows.length - 1} rows to CSV.`, 'success');
+        }
+
+        exportCsvBtn.addEventListener('click', exportRenderedDataToCsv);
+
         const colorPalette = [
             '#2563eb', '#16a34a', '#ea580c', '#9333ea', '#db2777', 
             '#0284c7', '#ca8a04', '#dc2626', '#4f46e5', '#059669'
@@ -302,6 +377,7 @@
                     log(msg + ".", "error");
                     chartTitle.textContent = `No valid data found`;
                     if (chartInstance) chartInstance.destroy();
+                    resetRenderedDataState();
                     return;
                 }
 
@@ -424,6 +500,10 @@
                     const displayTerms = searchTermsRaw.length > 40 ? searchTermsRaw.substring(0, 40) + '...' : searchTermsRaw;
                     chartTitle.textContent = `Performance Metrics for ${displayTerms}`;
                     renderChart(chartDatasets, xKeywords[0], yKeywords[0]);
+                    lastRenderedDatasets = chartDatasets;
+                    lastXLabel = xKeywords[0];
+                    lastYLabel = yKeywords[0];
+                    exportCsvBtn.disabled = false;
                     log(`\nAnalysis complete. Rendered ${chartDatasets.length} lines.`, "success");
                 } else {
                     let msg = `No valid data found for lot(s) '${searchTermsRaw}'`;
@@ -431,10 +511,12 @@
                     log(msg + ".", "error");
                     chartTitle.textContent = `No valid data found`;
                     if (chartInstance) chartInstance.destroy();
+                    resetRenderedDataState();
                 }
 
             } catch (err) {
                 log(`Database Error: ${err.message}`, "error");
+                resetRenderedDataState();
             }
         });
 
