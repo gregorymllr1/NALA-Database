@@ -32,18 +32,15 @@
         <div class="p-6 overflow-y-auto flex-1 space-y-6">
             
             <div class="space-y-2">
-                <label class="block text-sm font-semibold text-slate-700">1. Load Database</label>
-                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg hover:border-blue-500 transition-colors bg-slate-50 relative">
-                    <div class="space-y-1 text-center">
-                        <i data-lucide="database" class="mx-auto h-8 w-8 text-slate-400"></i>
-                        <div class="flex text-sm text-slate-600 mt-2">
-                            <label for="db-file" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 px-2 py-1 shadow-sm border border-slate-200">
-                                <span>Select .db file</span>
-                                <input id="db-file" name="db-file" type="file" class="sr-only" accept=".db,.sqlite">
-                            </label>
-                        </div>
-                        <p id="file-name-display" class="text-xs text-slate-500 mt-2">nala_rd_data.db</p>
+                <label class="block text-sm font-semibold text-slate-700">1. Database Status</label>
+                <div class="flex items-center justify-between px-4 py-3 border border-slate-200 rounded-lg bg-slate-50">
+                    <div class="flex items-center space-x-2 min-w-0">
+                        <i id="db-status-icon" data-lucide="loader" class="h-5 w-5 text-slate-400 shrink-0"></i>
+                        <p id="db-status-text" class="text-xs text-slate-500 truncate">Loading database...</p>
                     </div>
+                    <button id="refresh-db-btn" title="Re-fetch latest database" class="ml-2 shrink-0 p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                    </button>
                 </div>
             </div>
 
@@ -132,8 +129,7 @@
                 <button id="clear-log-btn" class="text-xs text-slate-400 hover:text-white transition-colors">Clear</button>
             </div>
             <div id="log-window" class="p-4 overflow-y-auto log-window text-slate-300 space-y-1 flex-1">
-                <p class="text-blue-400">> System Ready.</p>
-                <p>> Please load your nala_rd_data.db file and click Analyze.</p>
+                <p class="text-blue-400">> System Ready. Fetching database...</p>
             </div>
         </div>
 
@@ -149,9 +145,15 @@
         let lastXLabel = '';
         let lastYLabel = '';
 
-        const fileInput = document.getElementById('db-file');
-        const fileNameDisplay = document.getElementById('file-name-display');
         const analyzeBtn = document.getElementById('analyze-btn');
+        const dbStatusIcon = document.getElementById('db-status-icon');
+        const dbStatusText = document.getElementById('db-status-text');
+        const refreshDbBtn = document.getElementById('refresh-db-btn');
+
+        // ── Set this URL to your database file ────────────────────────────────────
+        // For GitHub Pages, use the raw file URL, e.g.:
+        // 'https://raw.githubusercontent.com/YOUR_ORG/NALA-Database/main/nala_rd_data.db'
+        const DB_URL = 'https://raw.githubusercontent.com/gregorymllr1/NALA-Database/main/nala_rd_data.db';
         const exportCsvBtn = document.getElementById('export-csv-btn');
         const logWindow = document.getElementById('log-window');
         const chartTitle = document.getElementById('chart-title');
@@ -186,36 +188,43 @@
         initSqlJs(config).then(function(SQL){
             sqlPromise = SQL;
             log("SQL engine loaded successfully.", "success");
+            fetchDatabase();
         }).catch(err => {
             log(`Failed to load SQL engine: ${err.message}`, "error");
         });
 
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            fileNameDisplay.textContent = file.name;
-            log(`Selected file: ${file.name}`);
-            
+        async function fetchDatabase() {
             if (!sqlPromise) {
                 log("SQL engine is still loading. Please wait...", "warn");
                 return;
             }
+            dbStatusIcon.setAttribute('data-lucide', 'loader');
+            dbStatusText.textContent = 'Fetching latest database...';
+            lucide.createIcons();
+            log("Fetching database from remote URL...");
 
-            const reader = new FileReader();
-            reader.onload = function() {
-                try {
-                    const Uints = new Uint8Array(reader.result);
-                    if (dbInstance) dbInstance.close();
-                    dbInstance = new sqlPromise.Database(Uints);
-                    log(`Database '${file.name}' loaded into memory successfully!`, "success");
-                    populateFeedSolutions(); 
-                } catch (error) {
-                    log(`Error loading database: ${error.message}`, "error");
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        });
+            try {
+                const response = await fetch(DB_URL, { cache: 'no-cache' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const buffer = await response.arrayBuffer();
+                const Uints = new Uint8Array(buffer);
+                if (dbInstance) dbInstance.close();
+                dbInstance = new sqlPromise.Database(Uints);
+                dbStatusIcon.setAttribute('data-lucide', 'check-circle');
+                dbStatusText.textContent = `nala_rd_data.db \u2014 loaded (${(buffer.byteLength / 1024).toFixed(0)} KB)`;
+                lucide.createIcons();
+                log("Database fetched and loaded successfully!", "success");
+                populateFeedSolutions();
+            } catch (err) {
+                dbStatusIcon.setAttribute('data-lucide', 'alert-circle');
+                dbStatusText.textContent = 'Failed to load database';
+                lucide.createIcons();
+                log(`Error fetching database: ${err.message}`, "error");
+                log(`Ensure DB_URL is set correctly in the script and the file is publicly accessible.`, "warn");
+            }
+        }
+
+        refreshDbBtn.addEventListener('click', fetchDatabase);
 
         function parseKeywords(rawString) {
             return rawString.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
