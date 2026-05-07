@@ -13,7 +13,7 @@ noble-conduit-494019-a4-898af3768636.json
 
 # Database files (except our main project database)
 *.db
-!nala_rd_data.db
+
 
 # Python
 __pycache__/
