@@ -425,8 +425,12 @@
                         }
                     }
 
-                    const checkedFeeds = Array.from(document.querySelectorAll('.feed-checkbox:checked')).map(cb => cb.value);
-                    if (checkedFeeds.length > 0) {
+                    // Expand checked canonical labels to their full set of raw DB values
+                    const checkedRawFeeds = new Set();
+                    document.querySelectorAll('.feed-checkbox:checked').forEach(cb => {
+                        try { JSON.parse(cb.dataset.raw || '[]').forEach(v => checkedRawFeeds.add(v)); } catch(e) {}
+                    });
+                    if (checkedRawFeeds.size > 0) {
                         let tableFeedVals = [];
                         for (let r = 0; r < values.length; r++) {
                             for (let c = 0; c < values[r].length; c++) {
@@ -435,7 +439,7 @@
                                 }
                             }
                         }
-                        let hasMatch = tableFeedVals.some(val => checkedFeeds.includes(val));
+                        let hasMatch = tableFeedVals.some(val => checkedRawFeeds.has(val));
                         if (!hasMatch) {
                             log(`  -> SKIPPED: Feed Solution mismatch.`, "warn");
                             continue;
@@ -629,10 +633,18 @@
             });
         });
 
+        // Update button text AND persist checked canonicals so re-renders can restore them
+        let lastCheckedCanonicals = new Set();
         document.getElementById('feed-list').addEventListener('change', () => {
-            const checkedCount = document.querySelectorAll('.feed-checkbox:checked').length;
-            if (checkedCount === 0) feedBtnText.innerText = 'All Solutions (No Filter)';
-            else if (checkedCount === 1) feedBtnText.innerText = '1 Solution Selected';
+            const checked = Array.from(document.querySelectorAll('.feed-checkbox:checked'));
+            lastCheckedCanonicals = new Set(checked.map(cb => cb.value));
+            const checkedCount = checked.length;
+            if (checkedCount === 0) {
+                const terms = parseKeywords(searchTermEl.value);
+                feedBtnText.innerText = terms.length > 0
+                    ? `All Matching Solutions (${document.querySelectorAll('.feed-checkbox').length})`
+                    : 'All Solutions (No Filter)';
+            } else if (checkedCount === 1) feedBtnText.innerText = '1 Solution Selected';
             else feedBtnText.innerText = `${checkedCount} Solutions Selected`;
         });
 
@@ -645,62 +657,197 @@
             document.getElementById('feed-list').dispatchEvent(new Event('change'));
         });
 
+        function normalizeFeedSolution(raw) {
+            // Hard overrides for entries that cannot be fixed by pattern matching alone
+            const hardOverrides = {
+                '2000': '2,000 ppm NaCl',
+                '2001 PPm NaCl': '2,000 ppm NaCl',
+                '1100': '1,100 ppm NaCl',
+                '1130': '1,130 ppm NaCl',
+                '550':  '550 ppm NaCl',
+                '870':  '870 ppm NaCl',
+            };
+            const trimmed = raw.trim();
+            if (hardOverrides[trimmed] !== undefined) return hardOverrides[trimmed];
+
+            // ASTM Sea Water detection — must run against the raw string before other transforms
+            // Matches any multi-salt seawater mix: NaCl + MgCl₂ + (KBr or NaHCO₃), or NaCl + MgCl + MgSO4 variants
+            {
+                const lc = trimmed.toLowerCase();
+                const isASTM = (lc.includes('mgcl') && (lc.includes('kbr') || lc.includes('nahco'))) ||
+                               (lc.includes('mgcl') && lc.includes('mgso') && lc.includes('kcl'));
+                if (isASTM) {
+                    const hasNaOCl  = lc.includes('naocl');
+                    const hasCitric = lc.includes('citric');
+                    if (hasNaOCl && hasCitric) return 'ASTM Sea Water + 10 ppm NaOCl + citric acid';
+                    if (hasNaOCl)              return 'ASTM Sea Water + 10 ppm NaOCl';
+                    if (hasCitric)             return 'ASTM Sea Water + citric acid';
+                    return 'ASTM Sea Water';
+                }
+            }
+
+            let s = trimmed;
+
+            // K notation: 2K / 2k / 32k → plain number (2000, 32000)
+            s = s.replace(/\b(\d+(?:\.\d+)?)\s*[Kk]\b/g, (_, n) => String(parseFloat(n) * 1000));
+
+            // Remove commas inside numbers so we can re-add them uniformly (2,000 → 2000)
+            s = s.replace(/(\d),(\d)/g, '$1$2');
+
+            // Normalize ppm case variations (PPM, PPm, Ppm → ppm)
+            s = s.replace(/\b[Pp][Pp][Mm]\b/g, 'ppm');
+
+            // Add space between digit and ppm: 2000ppm → 2000 ppm
+            s = s.replace(/(\d)(ppm)/gi, '$1 ppm');
+
+            // Add "ppm" when a bare number is immediately followed by a chemical name (missing unit)
+            // e.g. "2000 NaCl" → "2000 ppm NaCl"  (won't fire when ppm is already present)
+            s = s.replace(/\b(\d+(?:\.\d+)?)\s+(NaCl|NaCL|NACL|Nacl|NaCI)\b/g, '$1 ppm $2');
+
+            // Normalize NaCl case variations → NaCl (including NaCI with capital I)
+            s = s.replace(/\bNa[Cc][Ll]\b/g, 'NaCl');  // NaCl, NaCL, Nacl, NacL
+            s = s.replace(/\bNACL\b/gi, 'NaCl');        // NACL
+            s = s.replace(/\bNaCI\b/g, 'NaCl');         // NaCI (capital I mistaken for l)
+
+            // Add commas to integers ≥ 1000 (2000 → 2,000, 32000 → 32,000)
+            s = s.replace(/\b(\d{4,})\b/g, (m) => parseInt(m, 10).toLocaleString('en-US'));
+
+            // Normalize spacing around +
+            s = s.replace(/\s*\+\s*/g, ' + ');
+
+            // Collapse multiple spaces
+            s = s.replace(/  +/g, ' ');
+
+            return s.trim();
+        }
+
+        // Per-table metadata cache — built once per DB load, reused by renderFeedDropdown
+        let tableMetaCache = [];
+
         function populateFeedSolutions() {
             log("Scanning database to extract unique Feed Solutions...");
             const tablesResult = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table';");
             if (tablesResult.length === 0) return;
-            
+
             const allTables = tablesResult[0].values.map(row => row[0]);
-            let uniqueFeeds = new Set();
-            
+            tableMetaCache = [];
+
             for (let tableName of allTables) {
                 const dataResult = dbInstance.exec(`SELECT * FROM "${tableName}"`);
                 if (dataResult.length === 0) continue;
                 const values = dataResult[0].values;
-                
+
+                let sheetSampleNames = [];
+                let feedRaws = [];
                 for (let r = 0; r < values.length; r++) {
                     for (let c = 0; c < values[r].length; c++) {
-                        if (String(values[r][c]).toLowerCase().includes('feed solution')) {
-                            if (c + 1 < values[r].length) {
-                                let val = String(values[r][c+1]).trim();
-                                if (val && val !== 'null') uniqueFeeds.add(val);
+                        const cellLc = String(values[r][c]).toLowerCase();
+                        if (cellLc.includes('sample name')) {
+                            for (let col = c + 1; col < values[r].length; col++) {
+                                const val = String(values[r][col]).trim();
+                                if (val && val !== 'null') sheetSampleNames.push(val);
                             }
+                        }
+                        if (cellLc.includes('feed solution') && c + 1 < values[r].length) {
+                            const val = String(values[r][c + 1]).trim();
+                            if (val && val !== 'null') feedRaws.push(val);
                         }
                     }
                 }
+
+                tableMetaCache.push({
+                    tableName,
+                    searchHaystack: sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName,
+                    feedRaws
+                });
             }
-            
+
+            const totalRaw = tableMetaCache.reduce((s, m) => s + m.feedRaws.length, 0);
+            log(`Background scan complete. Cached ${tableMetaCache.length} tables (${totalRaw} raw feed entries). Rendering dropdown...`, "success");
+            renderFeedDropdown();
+        }
+
+        function renderFeedDropdown() {
+            if (!tableMetaCache.length) return;
+
+            const searchTerms = parseKeywords(searchTermEl.value);
+
+            // Filter cache to tables that match the current search terms (same regex as Analyze flow)
+            let allowedTables;
+            if (searchTerms.length === 0) {
+                allowedTables = tableMetaCache;
+            } else {
+                allowedTables = tableMetaCache.filter(meta =>
+                    searchTerms.some(term => {
+                        const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        return new RegExp(`(^|[^a-z0-9])${safeTerm}([^a-z0-9]|$)`, 'i').test(meta.searchHaystack);
+                    })
+                );
+            }
+
+            const uniqueFeeds = new Set();
+            allowedTables.forEach(meta => meta.feedRaws.forEach(v => uniqueFeeds.add(v)));
+
+            const canonicalMap = new Map();
+            uniqueFeeds.forEach(raw => {
+                const canonical = normalizeFeedSolution(raw);
+                if (!canonicalMap.has(canonical)) canonicalMap.set(canonical, []);
+                canonicalMap.get(canonical).push(raw);
+            });
+
+            const sortedCanonical = Array.from(canonicalMap.keys()).sort();
             const feedList = document.getElementById('feed-list');
-            feedList.innerHTML = ''; 
-            let sortedFeeds = Array.from(uniqueFeeds).sort();
-            
-            if (sortedFeeds.length === 0) {
-                feedList.innerHTML = '<div class="text-sm text-slate-500 italic px-2">No feed solutions found in DB.</div>';
-                feedBtnText.innerText = "No Solutions Found";
+            feedList.innerHTML = '';
+
+            if (sortedCanonical.length === 0) {
+                const msg = searchTerms.length > 0
+                    ? 'No feed solutions for the current Search Terms.'
+                    : 'No feed solutions found in DB.';
+                feedList.innerHTML = `<div class="text-sm text-slate-500 italic px-2">${msg}</div>`;
+                feedBtnText.innerText = searchTerms.length > 0 ? 'No Matching Solutions' : 'No Solutions Found';
                 return;
             }
-            
-            sortedFeeds.forEach(feed => {
-                const safeFeed = feed.replace(/"/g, '&quot;');
+
+            sortedCanonical.forEach(canonical => {
+                const rawVals = canonicalMap.get(canonical);
                 const div = document.createElement('div');
                 div.className = 'flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer feed-item';
-                div.innerHTML = `
-                    <input type="checkbox" value="${safeFeed}" class="feed-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2 cursor-pointer">
-                    <label class="text-xs text-slate-700 truncate w-full cursor-pointer" title="${safeFeed}">${feed}</label>
-                `;
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = canonical;
+                input.dataset.raw = JSON.stringify(rawVals);
+                input.className = 'feed-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2 cursor-pointer';
+                if (lastCheckedCanonicals.has(canonical)) input.checked = true;
+
+                const label = document.createElement('label');
+                label.className = 'text-xs text-slate-700 truncate w-full cursor-pointer';
+                label.title = rawVals.length > 1
+                    ? `${canonical}\n(${rawVals.length} variants merged)`
+                    : canonical;
+                label.textContent = canonical;
+
+                div.appendChild(input);
+                div.appendChild(label);
                 div.addEventListener('click', (e) => {
-                    if(e.target.tagName !== 'INPUT') {
-                        const cb = div.querySelector('input');
-                        cb.checked = !cb.checked;
-                        cb.dispatchEvent(new Event('change', { bubbles: true }));
+                    if (e.target.tagName !== 'INPUT') {
+                        input.checked = !input.checked;
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 });
                 feedList.appendChild(div);
             });
-            
-            feedBtnText.innerText = 'All Solutions (No Filter)';
-            log(`Background scan complete. Extracted ${sortedFeeds.length} unique Feed Solutions.`, "success");
+
+            // Fire change to sync button text without altering lastCheckedCanonicals mid-render
+            feedList.dispatchEvent(new Event('change'));
         }
+
+        // Debounced re-render of feed dropdown when Search Terms change
+        let searchTermDebounce = null;
+        searchTermEl.addEventListener('input', () => {
+            clearTimeout(searchTermDebounce);
+            searchTermDebounce = setTimeout(renderFeedDropdown, 200);
+        });
     </script>
 </body>
 </html>
