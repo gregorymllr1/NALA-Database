@@ -204,7 +204,9 @@
             log("Fetching database from remote URL...");
 
             try {
-                const response = await fetch(DB_URL, { cache: 'no-cache' });
+                const response = await fetch('https://data.naladatabase.us/nala_rd_data.db', {
+    credentials: 'include'
+});
                 if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 const buffer = await response.arrayBuffer();
                 const Uints = new Uint8Array(buffer);
