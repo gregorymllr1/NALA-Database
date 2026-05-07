@@ -5,17 +5,23 @@ Runs, in order:
 1. git pull --rebase
 2. Extraction.py
 3. ingestion.py
-4. git add nala_rd_data.db
-5. git commit -m "..."
-6. git push
+4. Upload nala_rd_data.db to Cloudflare R2 (data.naladatabase.us)
 
 Use --dry-run first to preview actions safely.
+
+Requires R2 credentials in environment variables (or a .env file in the project root):
+  R2_ACCOUNT_ID         — your Cloudflare account ID
+  R2_ACCESS_KEY_ID      — R2 API token Access Key ID
+  R2_SECRET_ACCESS_KEY  — R2 API token Secret Access Key
+  R2_BUCKET             — bucket name (defaults to 'nala-data')
+  R2_OBJECT_KEY         — object key in the bucket (defaults to 'nala_rd_data.db')
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -75,9 +81,63 @@ def ensure_clean_worktree(allow_dirty: bool) -> None:
         )
 
 
-def database_changed() -> bool:
-    status = command_output(["git", "status", "--porcelain", "--", "nala_rd_data.db"])
-    return bool(status)
+def upload_to_r2(dry_run: bool = False) -> None:
+    # Lazy imports so users without boto3 installed get a clear error only when uploading
+    try:
+        import boto3  # type: ignore[import-not-found]
+        from botocore.config import Config  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError(
+            "boto3 is required for R2 upload. Install it: pip install boto3 python-dotenv"
+        ) from exc
+
+    # Load .env if python-dotenv is available; otherwise rely on the environment
+    try:
+        from dotenv import load_dotenv  # type: ignore[import-not-found]
+        load_dotenv(PROJECT_ROOT / ".env")
+    except ImportError:
+        pass
+
+    account_id = os.environ.get("R2_ACCOUNT_ID")
+    access_key = os.environ.get("R2_ACCESS_KEY_ID")
+    secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
+    bucket     = os.environ.get("R2_BUCKET", "nala-data")
+    object_key = os.environ.get("R2_OBJECT_KEY", "nala_rd_data.db")
+
+    missing = [name for name, val in {
+        "R2_ACCOUNT_ID": account_id,
+        "R2_ACCESS_KEY_ID": access_key,
+        "R2_SECRET_ACCESS_KEY": secret_key,
+    }.items() if not val]
+    if missing:
+        raise RuntimeError(
+            "Missing required R2 environment variables: " + ", ".join(missing) +
+            ". Set them in your shell or in a .env file in the project root."
+        )
+
+    endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+    size_mb = DB_FILE.stat().st_size / (1024 * 1024)
+    _print_step(f"Uploading {DB_FILE.name} ({size_mb:.1f} MB) to R2 bucket '{bucket}' as '{object_key}'")
+
+    if dry_run:
+        _print_step("Dry-run: skipping actual upload.")
+        return
+
+    client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name="auto",
+        config=Config(signature_version="s3v4"),
+    )
+    client.upload_file(
+        Filename=str(DB_FILE),
+        Bucket=bucket,
+        Key=object_key,
+        ExtraArgs={"ContentType": "application/octet-stream"},
+    )
+    _print_step("R2 upload complete.")
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,7 +145,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--message",
         default=f"Weekly database update: {dt.date.today().isoformat()}",
-        help="Git commit message for the database update.",
+        help="(Reserved for future use.) Note describing this run.",
     )
     parser.add_argument(
         "--skip-pull",
@@ -93,9 +153,9 @@ def parse_args() -> argparse.Namespace:
         help="Skip git pull --rebase before extraction.",
     )
     parser.add_argument(
-        "--skip-push",
+        "--skip-upload",
         action="store_true",
-        help="Commit locally but do not push.",
+        help="Run extraction/ingestion but skip the R2 upload step.",
     )
     parser.add_argument(
         "--allow-dirty",
@@ -128,22 +188,15 @@ def main() -> int:
             raise RuntimeError("Database file missing after ingestion: nala_rd_data.db")
 
         if args.dry_run:
-            _print_step("Dry-run complete. No files were modified.")
+            _print_step("Dry-run complete. No files were modified or uploaded.")
             return 0
 
-        if not database_changed():
-            _print_step("No changes detected in nala_rd_data.db. Nothing to commit.")
+        if args.skip_upload:
+            _print_step("R2 upload skipped by --skip-upload.")
             return 0
 
-        run_command(["git", "add", "nala_rd_data.db"])
-        run_command(["git", "commit", "-m", args.message])
-
-        if args.skip_push:
-            _print_step("Commit created locally. Push skipped by --skip-push.")
-        else:
-            run_command(["git", "push"])
-            _print_step("Workflow complete: database updated, committed, and pushed.")
-
+        upload_to_r2(dry_run=args.dry_run)
+        _print_step("Workflow complete: database extracted, ingested, and uploaded to R2.")
         return 0
 
     except Exception as exc:
