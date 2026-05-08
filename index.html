@@ -19,6 +19,21 @@
         .chart-legend::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
         .chart-legend::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .chart-legend::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        #log-drawer {
+            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
+            transform: translateY(calc(100% + 1rem));
+            opacity: 0;
+            pointer-events: none;
+        }
+        #log-drawer.open {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+        #log-fab {
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans h-screen flex overflow-hidden">
@@ -107,7 +122,7 @@
 
     <div class="flex-1 flex flex-col h-full bg-slate-100 p-6 overflow-hidden">
         
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col mb-6 relative min-h-0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col relative min-h-0">
             <h2 id="chart-title" class="text-lg font-bold text-slate-800 mb-4 text-center">Awaiting Data...</h2>
             <div class="w-full flex-1 min-h-0 flex gap-4 overflow-hidden">
                 <div class="relative flex-1 min-w-0 min-h-0">
@@ -120,20 +135,33 @@
             </div>
         </div>
 
-        <div class="bg-slate-900 rounded-xl shadow-lg border border-slate-700 h-64 flex flex-col font-mono text-sm overflow-hidden shrink-0">
-            <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
-                <div class="flex items-center text-slate-300">
-                    <i data-lucide="terminal" class="mr-2 h-4 w-4"></i>
-                    Extraction Logs
-                </div>
-                <button id="clear-log-btn" class="text-xs text-slate-400 hover:text-white transition-colors">Clear</button>
+    </div>
+
+    <!-- Floating Log Drawer -->
+    <div id="log-drawer" class="fixed bottom-20 right-6 w-[480px] max-w-[calc(100vw-3rem)] bg-slate-900 rounded-xl shadow-2xl border border-slate-700 font-mono text-sm overflow-hidden z-50">
+        <div class="bg-slate-800 px-4 py-2.5 border-b border-slate-700 flex justify-between items-center">
+            <div class="flex items-center text-slate-300 font-semibold">
+                <i data-lucide="terminal" class="mr-2 h-4 w-4"></i>
+                Extraction Logs
             </div>
-            <div id="log-window" class="p-4 overflow-y-auto log-window text-slate-300 space-y-1 flex-1">
-                <p class="text-blue-400">> System Ready. Fetching database...</p>
+            <div class="flex items-center gap-3">
+                <button id="clear-log-btn" class="text-xs text-slate-400 hover:text-white transition-colors">Clear</button>
+                <button id="log-close-btn" class="text-slate-400 hover:text-white transition-colors" title="Close">
+                    <i data-lucide="x" class="h-4 w-4"></i>
+                </button>
             </div>
         </div>
-
+        <div id="log-window" class="p-4 overflow-y-auto log-window text-slate-300 space-y-1" style="height: 260px;">
+            <p class="text-blue-400">> System Ready. Fetching database...</p>
+        </div>
     </div>
+
+    <!-- Floating Log Toggle Button -->
+    <button id="log-fab" class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-full shadow-lg transition-colors text-sm font-medium border border-slate-600">
+        <i data-lucide="terminal" class="h-4 w-4"></i>
+        <span id="log-fab-label">Logs</span>
+        <span id="log-fab-badge" class="hidden ml-1 h-2 w-2 rounded-full bg-green-400"></span>
+    </button>
 
     <script>
         lucide.createIcons();
@@ -164,21 +192,48 @@
         const yKeywordsEl = document.getElementById('y-keywords');
         const excludeWordsEl = document.getElementById('exclude-words');
 
+        document.getElementById('clear-log-btn').addEventListener('click', () => {
+            logWindow.innerHTML = '<p class="text-blue-400">> Logs cleared.</p>';
+        });
+
+        // --- Floating log drawer toggle ---
+        const logDrawer = document.getElementById('log-drawer');
+        const logFab = document.getElementById('log-fab');
+        const logFabLabel = document.getElementById('log-fab-label');
+        const logFabBadge = document.getElementById('log-fab-badge');
+        let logDrawerOpen = false;
+        let logHasNew = false;
+
+        function toggleLogDrawer() {
+            logDrawerOpen = !logDrawerOpen;
+            logDrawer.classList.toggle('open', logDrawerOpen);
+            logFabLabel.textContent = logDrawerOpen ? 'Close Logs' : 'Logs';
+            if (logDrawerOpen) {
+                logHasNew = false;
+                logFabBadge.classList.add('hidden');
+                logWindow.scrollTop = logWindow.scrollHeight;
+            }
+        }
+
+        logFab.addEventListener('click', toggleLogDrawer);
+        document.getElementById('log-close-btn').addEventListener('click', toggleLogDrawer);
+
+        // --- log() ---
+
         function log(message, type = 'info') {
             const p = document.createElement('p');
             if (type === 'error') p.className = 'text-red-400';
             else if (type === 'success') p.className = 'text-green-400';
             else if (type === 'warn') p.className = 'text-yellow-400';
             else p.className = 'text-slate-300';
-            
             p.textContent = `> ${message}`;
             logWindow.appendChild(p);
             logWindow.scrollTop = logWindow.scrollHeight;
+            if (!logDrawerOpen) {
+                logHasNew = true;
+                logFabBadge.classList.remove('hidden');
+            }
         }
-
-        document.getElementById('clear-log-btn').addEventListener('click', () => {
-            logWindow.innerHTML = '<p class="text-blue-400">> Logs cleared.</p>';
-        });
 
         log("Downloading SQL engine (WebAssembly)...");
         const config = {
