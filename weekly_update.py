@@ -199,6 +199,9 @@ def main() -> int:
         _print_step("Workflow complete: database extracted, ingested, and uploaded to R2.")
         return 0
 
+    except KeyboardInterrupt:
+        _print_step("Interrupted by user.")
+        return 1
     except Exception as exc:
         _print_step(f"ERROR: {exc}")
         return 1
