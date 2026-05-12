@@ -862,6 +862,23 @@
         // Per-table metadata cache — built once per DB load, reused by renderFeedDropdown
         let tableMetaCache = [];
 
+        // Reject values that are obviously column headers / measurement labels rather than
+        // actual feed-solution chemistries. These leak in when "Feed Solution" appears as a
+        // header in a row of column headers and the scanner picks up the adjacent header cell.
+        const FEED_HEADER_BLOCKLIST = /^(pressure|temperature|temp|flow(?:\s*rate)?|conductivity|ph|turbidity|time(?:\s*elapsed)?|elapsed|date|sample(?:\s*name)?|sample\s*id|flux|recovery|permeate|feed|concentrate|reject|tmp|run\s*time|cell|membrane|instrument|operator|notes?|comments?|stage|cycle|step|salt\s*passage|rejection|tds)\b/i;
+
+        function isLikelyHeaderLabel(val) {
+            const v = String(val).trim();
+            if (!v) return true;
+            // Pure unit-bracketed labels like "Pressure (PSI)", "Temperature (°C)", "Flow (mL/min)"
+            if (FEED_HEADER_BLOCKLIST.test(v)) return true;
+            // A bare unit-in-parens with no chemistry indicator
+            if (/^[A-Za-z][A-Za-z\s/]*\s*\([^)]*\)\s*$/.test(v) && !/(ppm|nacl|cacl|mgcl|na2so4|naocl|citric|h2o2|caco3|silica|hcl|naoh|kbr|nahco|kcl|mgso)/i.test(v)) {
+                return true;
+            }
+            return false;
+        }
+
         function populateFeedSolutions() {
             log("Scanning database to extract unique Feed Solutions...");
             const tablesResult = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table';");
@@ -888,7 +905,7 @@
                         }
                         if (cellLc.includes('feed solution') && c + 1 < values[r].length) {
                             const val = String(values[r][c + 1]).trim();
-                            if (val && val !== 'null') feedRaws.push(val);
+                            if (val && val !== 'null' && !isLikelyHeaderLabel(val)) feedRaws.push(val);
                         }
                     }
                 }
