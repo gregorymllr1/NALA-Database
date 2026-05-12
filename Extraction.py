@@ -1,12 +1,16 @@
 import os
 import io
 import os.path
+import httplib2
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from config import CLIENT_SECRET_FILE, TOKEN_FILE, FOLDER_ID, DOWNLOAD_DIR, SCOPES
+
+REQUEST_TIMEOUT = 120  # seconds
 
 def authenticate_user():
     """Authenticates using your saved browser login."""
@@ -25,7 +29,8 @@ def authenticate_user():
         with open(TOKEN_FILE, 'w') as token:
             token.write(creds.to_json())
 
-    service = build('drive', 'v3', credentials=creds)
+    authed_http = AuthorizedHttp(creds, http=httplib2.Http(timeout=REQUEST_TIMEOUT))
+    service = build('drive', 'v3', http=authed_http)
     return service
 
 def crawl_and_download_sheets(service, root_folder_id, download_path):

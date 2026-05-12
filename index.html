@@ -480,12 +480,18 @@
                         }
                     }
 
-                    // Expand checked canonical labels to their full set of raw DB values
-                    const checkedRawFeeds = new Set();
+                    // Expand checked canonical labels to their full set of raw DB values.
+                    // Each entry may also impose a 2nd-pass requirement (true | false | null=any).
+                    const checkedFeedEntries = [];
                     document.querySelectorAll('.feed-checkbox:checked').forEach(cb => {
-                        try { JSON.parse(cb.dataset.raw || '[]').forEach(v => checkedRawFeeds.add(v)); } catch(e) {}
+                        try {
+                            const raws = new Set(JSON.parse(cb.dataset.raw || '[]'));
+                            const rsp = cb.dataset.requireSecondPass;
+                            const requireSecondPass = rsp === 'true' ? true : rsp === 'false' ? false : null;
+                            checkedFeedEntries.push({ raws, requireSecondPass });
+                        } catch(e) {}
                     });
-                    if (checkedRawFeeds.size > 0) {
+                    if (checkedFeedEntries.length > 0) {
                         let tableFeedVals = [];
                         for (let r = 0; r < values.length; r++) {
                             for (let c = 0; c < values[r].length; c++) {
@@ -494,7 +500,11 @@
                                 }
                             }
                         }
-                        let hasMatch = tableFeedVals.some(val => checkedRawFeeds.has(val));
+                        const tableIs2ndPass = /(2nd\s*pass|second\s*pass)/i.test(tableName);
+                        const hasMatch = checkedFeedEntries.some(entry =>
+                            tableFeedVals.some(v => entry.raws.has(v)) &&
+                            (entry.requireSecondPass === null || entry.requireSecondPass === tableIs2ndPass)
+                        );
                         if (!hasMatch) {
                             log(`  -> SKIPPED: Feed Solution mismatch.`, "warn");
                             continue;
@@ -813,7 +823,8 @@
                 tableMetaCache.push({
                     tableName,
                     searchHaystack: sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName,
-                    feedRaws
+                    feedRaws,
+                    is2ndPass: /(2nd\s*pass|second\s*pass)/i.test(tableName)
                 });
             }
 
@@ -840,14 +851,27 @@
                 );
             }
 
-            const uniqueFeeds = new Set();
-            allowedTables.forEach(meta => meta.feedRaws.forEach(v => uniqueFeeds.add(v)));
-
+            // canonicalMap: canonical label -> { raws: Set<string>, requireSecondPass: bool|null }
+            // ASTM Sea Water entries are split into a base bucket and a "- 2nd pass" bucket
+            // based on the source table's title.
             const canonicalMap = new Map();
-            uniqueFeeds.forEach(raw => {
-                const canonical = normalizeFeedSolution(raw);
-                if (!canonicalMap.has(canonical)) canonicalMap.set(canonical, []);
-                canonicalMap.get(canonical).push(raw);
+            allowedTables.forEach(meta => {
+                meta.feedRaws.forEach(raw => {
+                    let canonical = normalizeFeedSolution(raw);
+                    let requireSecondPass = null;
+                    if (canonical.startsWith('ASTM Sea Water')) {
+                        if (meta.is2ndPass) {
+                            canonical = canonical + ' - 2nd pass';
+                            requireSecondPass = true;
+                        } else {
+                            requireSecondPass = false;
+                        }
+                    }
+                    if (!canonicalMap.has(canonical)) {
+                        canonicalMap.set(canonical, { raws: new Set(), requireSecondPass });
+                    }
+                    canonicalMap.get(canonical).raws.add(raw);
+                });
             });
 
             const sortedCanonical = Array.from(canonicalMap.keys()).sort();
@@ -864,7 +888,8 @@
             }
 
             sortedCanonical.forEach(canonical => {
-                const rawVals = canonicalMap.get(canonical);
+                const entry = canonicalMap.get(canonical);
+                const rawVals = Array.from(entry.raws);
                 const div = document.createElement('div');
                 div.className = 'flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer feed-item';
 
@@ -872,6 +897,7 @@
                 input.type = 'checkbox';
                 input.value = canonical;
                 input.dataset.raw = JSON.stringify(rawVals);
+                input.dataset.requireSecondPass = entry.requireSecondPass === null ? '' : String(entry.requireSecondPass);
                 input.className = 'feed-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2 cursor-pointer';
                 if (lastCheckedCanonicals.has(canonical)) input.checked = true;
 
