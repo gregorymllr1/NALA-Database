@@ -870,6 +870,8 @@
         function isLikelyHeaderLabel(val) {
             const v = String(val).trim();
             if (!v) return true;
+            // Excel error sentinels (#REF!, #N/A, #VALUE!, #DIV/0!, #NAME?, #NULL!, #NUM!)
+            if (/^#(REF|N\/A|VALUE|DIV\/0|NAME|NULL|NUM)[!?]?$/i.test(v)) return true;
             // Pure unit-bracketed labels like "Pressure (PSI)", "Temperature (°C)", "Flow (mL/min)"
             if (FEED_HEADER_BLOCKLIST.test(v)) return true;
             // A bare unit-in-parens with no chemistry indicator
