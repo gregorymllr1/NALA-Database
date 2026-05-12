@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NALA Explorer - Database Status</title>
+<!-- Tailwind CSS v3 CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Inter for clean sans-serif -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<style data-purpose="global-styles">
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f8f9fa;
+    }
+    .red-glow {
+      box-shadow: 0 0 20px 5px rgba(239, 68, 68, 0.4);
+    }
+    .inset-button-shadow {
+      box-shadow: inset 1px 1px 3px rgba(255,255,255,0.9), inset -1px -1px 3px rgba(0,0,0,0.1), 1px 1px 4px rgba(0,0,0,0.1);
+    }
+    .card-gradient {
+      background: linear-gradient(135deg, #ffffff 0%, #f0f2f5 100%);
+    }
+  </style>
+</head>
+<body class="flex justify-center items-start min-h-screen pt-10">
+<!-- BEGIN: MainContainer -->
+<main class="w-full max-w-md bg-white overflow-hidden shadow-sm border border-gray-100" data-purpose="app-sidebar-panel">
+<!-- BEGIN: MainHeader -->
+<header class="flex items-center gap-3 px-6 py-4 border-b border-gray-100" data-purpose="header">
+<!-- Flask Icon Placeholder -->
+<div aria-hidden="true" class="text-blue-600">
+<svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<h1 class="text-2xl font-semibold text-blue-700">NALA Explorer</h1>
+</header>
+<!-- END: MainHeader -->
+<!-- BEGIN: ContentArea -->
+<div class="p-8 space-y-10">
+<!-- BEGIN: Section1-DatabaseStatus -->
+<section data-purpose="database-status-section">
+<h2 class="text-xl font-semibold text-gray-800 mb-4">1. Database Status</h2>
+<!-- Status Card -->
+<div class="card-gradient border border-gray-200 rounded-xl p-6 shadow-sm relative" data-purpose="status-card">
+<!-- Badge Container -->
+<div class="flex justify-center mb-6">
+<div class="bg-red-600 text-white font-bold px-6 py-2 rounded-xl red-glow text-sm tracking-wide">
+              NOT READY
+            </div>
+</div>
+<!-- Progress Bar -->
+<div class="w-full bg-gray-200 rounded-full h-3.5 mb-6 overflow-hidden shadow-inner">
+<div class="bg-red-600 h-3.5 rounded-full w-full"></div>
+</div>
+<!-- Card Footer Details -->
+<div class="flex justify-between items-end">
+<div class="space-y-2">
+<!-- DB Name Row -->
+<div class="flex items-center gap-2 text-gray-700 text-sm font-medium">
+<svg class="h-5 w-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+<path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"></path>
+<path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"></path>
+<path d="M17 4c0 1.657-3.134 3-7 3S3 5.657 3 4s3.134-3 7-3 7 1.343 7 3z"></path>
+</svg>
+<span>nala_rl_data.db</span>
+</div>
+<!-- Size Row -->
+<div class="flex items-center gap-2 text-gray-700 text-sm font-medium">
+<svg class="h-5 w-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" fill-rule="evenodd"></path>
+</svg>
+<span>68232 KB</span>
+</div>
+</div>
+<!-- Refresh Button -->
+<button class="w-10 h-10 flex items-center justify-center bg-gray-100 border border-gray-300 rounded-lg inset-button-shadow hover:bg-gray-200 transition-colors" data-purpose="refresh-button" title="Refresh Status">
+<svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+</section>
+<!-- END: Section1-DatabaseStatus -->
+<!-- BEGIN: Section2-SearchParameters -->
+<section data-purpose="search-parameters-section">
+<h2 class="text-xl font-semibold text-gray-800 mb-4">2. Search Parameters</h2>
+<div class="space-y-2">
+<label class="block text-sm font-medium text-gray-700" for="search-terms">
+            Search Terms (Comma separated)
+          </label>
+<input class="w-full border border-gray-200 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 text-gray-800 p-3" id="search-terms" name="search-terms" placeholder="Enter terms..." type="text" value="MVBHIS, mve#16" />
+</div>
+</section>
+<!-- END: Section2-SearchParameters -->
+</div>
+<!-- END: ContentArea -->
+</main>
+<!-- END: MainContainer -->
+</body></html>

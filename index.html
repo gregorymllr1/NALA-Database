@@ -34,6 +34,34 @@
         #log-fab {
             box-shadow: 0 4px 24px rgba(0,0,0,0.18);
         }
+
+        /* Database status card */
+        .db-card-gradient {
+            background: linear-gradient(135deg, #ffffff 0%, #f0f2f5 100%);
+        }
+        .db-badge-loading {
+            background-color: #94a3b8;
+        }
+        .db-badge-ready {
+            background-color: #22c55e;
+            box-shadow: 0 0 15px 4px rgba(34, 197, 94, 0.4);
+        }
+        .db-badge-notready {
+            background-color: #dc2626;
+            box-shadow: 0 0 20px 5px rgba(239, 68, 68, 0.4);
+        }
+        .db-bar-loading {
+            background-color: #cbd5e1;
+        }
+        .db-bar-ready {
+            background-color: #22c55e;
+        }
+        .db-bar-notready {
+            background-color: #dc2626;
+        }
+        .db-inset-btn {
+            box-shadow: inset 1px 1px 3px rgba(255,255,255,0.9), inset -1px -1px 3px rgba(0,0,0,0.1), 1px 1px 4px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans h-screen flex overflow-hidden">
@@ -48,14 +76,43 @@
             
             <div class="space-y-2">
                 <label class="block text-sm font-semibold text-slate-700">1. Database Status</label>
-                <div class="flex items-center justify-between px-4 py-3 border border-slate-200 rounded-lg bg-slate-50">
-                    <div class="flex items-center space-x-2 min-w-0">
-                        <i id="db-status-icon" data-lucide="loader" class="h-5 w-5 text-slate-400 shrink-0"></i>
-                        <p id="db-status-text" class="text-xs text-slate-500 truncate">Loading database...</p>
+                <!-- Status Card -->
+                <div class="db-card-gradient border border-slate-200 rounded-xl p-5">
+                    <!-- Badge -->
+                    <div class="flex justify-center mb-4">
+                        <div id="db-status-badge" class="db-badge-loading text-white font-bold px-6 py-2 rounded-xl text-sm tracking-wide">
+                            LOADING...
+                        </div>
                     </div>
-                    <button id="refresh-db-btn" title="Re-fetch latest database" class="ml-2 shrink-0 p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                        <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-                    </button>
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-gray-200 rounded-full h-3 mb-4 overflow-hidden shadow-inner">
+                        <div id="db-status-bar" class="db-bar-loading h-3 rounded-full w-full transition-colors duration-500"></div>
+                    </div>
+                    <!-- Footer: DB info + refresh -->
+                    <div class="flex justify-between items-end">
+                        <div class="space-y-1.5">
+                            <div class="flex items-center gap-2 text-slate-600 text-xs font-medium">
+                                <svg class="h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"/>
+                                    <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"/>
+                                    <path d="M17 4c0 1.657-3.134 3-7 3S3 5.657 3 4s3.134-3 7-3 7 1.343 7 3z"/>
+                                </svg>
+                                <span id="db-name-text">nala_rd_data.db</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-slate-600 text-xs font-medium">
+                                <svg class="h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path clip-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" fill-rule="evenodd"/>
+                                </svg>
+                                <span id="db-size-text">— KB</span>
+                            </div>
+                        </div>
+                        <!-- Refresh Button -->
+                        <button id="refresh-db-btn" title="Re-fetch latest database" class="w-9 h-9 flex items-center justify-center bg-gray-100 border border-gray-300 rounded-lg db-inset-btn hover:bg-gray-200 transition-colors">
+                            <svg class="h-4 w-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -174,9 +231,31 @@
         let lastYLabel = '';
 
         const analyzeBtn = document.getElementById('analyze-btn');
-        const dbStatusIcon = document.getElementById('db-status-icon');
-        const dbStatusText = document.getElementById('db-status-text');
+        const dbStatusBadge = document.getElementById('db-status-badge');
+        const dbStatusBar = document.getElementById('db-status-bar');
+        const dbSizeText = document.getElementById('db-size-text');
         const refreshDbBtn = document.getElementById('refresh-db-btn');
+
+        function setDbStatus(state, sizeKB) {
+            const badge = dbStatusBadge;
+            const bar = dbStatusBar;
+            badge.className = 'text-white font-bold px-6 py-2 rounded-xl text-sm tracking-wide';
+            bar.className = 'h-3 rounded-full w-full transition-colors duration-500';
+            if (state === 'ready') {
+                badge.textContent = 'READY';
+                badge.classList.add('db-badge-ready');
+                bar.classList.add('db-bar-ready');
+                if (sizeKB) dbSizeText.textContent = sizeKB + ' KB';
+            } else if (state === 'notready') {
+                badge.textContent = 'NOT READY';
+                badge.classList.add('db-badge-notready');
+                bar.classList.add('db-bar-notready');
+            } else {
+                badge.textContent = 'LOADING...';
+                badge.classList.add('db-badge-loading');
+                bar.classList.add('db-bar-loading');
+            }
+        }
 
         // ── Set this URL to your database file ────────────────────────────────────
         // For GitHub Pages, use the raw file URL, e.g.:
@@ -253,9 +332,7 @@
                 log("SQL engine is still loading. Please wait...", "warn");
                 return;
             }
-            dbStatusIcon.setAttribute('data-lucide', 'loader');
-            dbStatusText.textContent = 'Fetching latest database...';
-            lucide.createIcons();
+            setDbStatus('loading');
             log("Fetching database from remote URL...");
 
             try {
@@ -265,15 +342,11 @@
                 const Uints = new Uint8Array(buffer);
                 if (dbInstance) dbInstance.close();
                 dbInstance = new sqlPromise.Database(Uints);
-                dbStatusIcon.setAttribute('data-lucide', 'check-circle');
-                dbStatusText.textContent = `nala_rd_data.db \u2014 loaded (${(buffer.byteLength / 1024).toFixed(0)} KB)`;
-                lucide.createIcons();
+                setDbStatus('ready', (buffer.byteLength / 1024).toFixed(0));
                 log("Database fetched and loaded successfully!", "success");
                 populateFeedSolutions();
             } catch (err) {
-                dbStatusIcon.setAttribute('data-lucide', 'alert-circle');
-                dbStatusText.textContent = 'Failed to load database';
-                lucide.createIcons();
+                setDbStatus('notready');
                 log(`Error fetching database: ${err.message}`, "error");
                 log(`Ensure DB_URL is set correctly in the script and the file is publicly accessible.`, "warn");
             }
