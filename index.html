@@ -500,7 +500,7 @@
                                 }
                             }
                         }
-                        const tableIs2ndPass = /(2nd\s*pass|second\s*pass)/i.test(tableName);
+                        const tableIs2ndPass = /(2nd[\s_]*pass|second[\s_]*pass)/i.test(tableName);
                         const hasMatch = checkedFeedEntries.some(entry =>
                             tableFeedVals.some(v => entry.raws.has(v)) &&
                             (entry.requireSecondPass === null || entry.requireSecondPass === tableIs2ndPass)
@@ -824,7 +824,7 @@
                     tableName,
                     searchHaystack: sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName,
                     feedRaws,
-                    is2ndPass: /(2nd\s*pass|second\s*pass)/i.test(tableName)
+                    is2ndPass: /(2nd[\s_]*pass|second[\s_]*pass)/i.test(tableName)
                 });
             }
 
