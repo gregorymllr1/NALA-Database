@@ -179,7 +179,7 @@
 
     <div class="flex-1 flex flex-col h-full bg-slate-100 p-6 overflow-hidden">
         
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col relative min-h-0">
+        <div id="chart-container" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex-1 flex flex-col relative min-h-0">
             <h2 id="chart-title" class="text-lg font-bold text-slate-800 mb-4 text-center">Awaiting Data...</h2>
             <div class="w-full flex-1 min-h-0 flex gap-4 overflow-hidden">
                 <div class="relative flex-1 min-w-0 min-h-0">
@@ -189,6 +189,12 @@
                     <h3 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Experiment Source</h3>
                     <div id="chart-legend" class="chart-legend flex-1 overflow-y-auto space-y-1 pr-1"></div>
                 </div>
+            </div>
+        </div>
+
+        <div id="element-data-panel" class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6 mt-4 flex-1 flex flex-col min-h-0">
+            <h2 id="element-title" class="text-lg font-bold text-slate-800 mb-4 text-center">Element Performance</h2>
+            <div id="element-table-container" class="overflow-auto flex-1 min-h-0">
             </div>
         </div>
 
@@ -227,6 +233,7 @@
         let dbInstance = null;
         let chartInstance = null;
         let lastRenderedDatasets = [];
+        let lastElementDatasets = [];
         let lastXLabel = '';
         let lastYLabel = '';
 
@@ -366,6 +373,66 @@
             return null;
         }
 
+        const ELEMENT_METRIC_KEYWORDS = ['serial #', 'cell #', 'sqft', 'recovery', 'temp', 'psi', 'cond', 'tds ppm', 'sr%', 'gpm', 'gpd', 'gfd', 'lmh', 'lmh/bar', 'gpm/psi', 'date tested'];
+        const ELEMENT_DISPLAY_COLUMNS = ['Serial #', 'Cell #', 'Date Tested', 'sqft', 'psi', 'Temp', 'Recovery', 'Cond', 'TDS ppm', 'SR%', 'gpm', 'gpd', 'gfd', 'lmh', 'lmh/bar', 'gpm/psi'];
+
+        function isElementPerformanceTable(tableName, values) {
+            if (/performance_calc/i.test(tableName)) return true;
+            const probeKeys = ['serial #', 'sr%', 'lmh', 'gfd', 'gpm'];
+            for (let r = 0; r < Math.min(values.length, 10); r++) {
+                let hits = 0;
+                for (let c = 0; c < values[r].length; c++) {
+                    if (probeKeys.includes(String(values[r][c]).toLowerCase().trim())) hits++;
+                }
+                if (hits >= 3) return true;
+            }
+            return false;
+        }
+
+        function extractElementData(values) {
+            const records = [];
+            const foundMetrics = new Set();
+
+            for (let r = 0; r < values.length; r++) {
+                const colMap = {};
+                let hits = 0;
+                for (let c = 0; c < values[r].length; c++) {
+                    const cell = String(values[r][c]).toLowerCase().trim();
+                    if (ELEMENT_METRIC_KEYWORDS.includes(cell)) {
+                        colMap[cell] = c;
+                        hits++;
+                    }
+                }
+                if (hits < 3) continue;
+
+                const keyMetrics = ['sr%', 'lmh', 'gfd'];
+                for (let dr = r + 1; dr < values.length; dr++) {
+                    const row = values[dr];
+                    const record = {};
+                    let hasKeyMetric = false;
+
+                    for (const [metric, colIdx] of Object.entries(colMap)) {
+                        const raw = row[colIdx];
+                        const str = String(raw ?? '').trim();
+                        if (!str || str === 'null' || str.startsWith('#DIV')) {
+                            record[metric] = null;
+                            continue;
+                        }
+                        record[metric] = str;
+                        if (keyMetrics.includes(metric)) {
+                            const num = extractNumber(raw);
+                            if (num !== null && num !== 0) hasKeyMetric = true;
+                        }
+                    }
+
+                    if (!hasKeyMetric) break;
+                    Object.keys(colMap).forEach(k => foundMetrics.add(k));
+                    records.push(record);
+                }
+            }
+            return { records, metrics: Array.from(foundMetrics) };
+        }
+
         function formatLegendLabel(rawName, truncate = true) {
             let cleanName = rawName.replace('tbl_', '');
             cleanName = cleanName.replace(/^_+/, '');
@@ -376,6 +443,7 @@
 
         function resetRenderedDataState() {
             lastRenderedDatasets = [];
+            lastElementDatasets = [];
             lastXLabel = '';
             lastYLabel = '';
             exportCsvBtn.disabled = true;
@@ -400,27 +468,44 @@
         }
 
         function exportRenderedDataToCsv() {
-            if (!lastRenderedDatasets.length) {
-                log('No plotted data available to export.', 'warn');
+            if (!lastRenderedDatasets.length && !lastElementDatasets.length) {
+                log('No data available to export.', 'warn');
                 return;
             }
 
-            const header = ['series', 'x_axis', 'x_value', 'y_axis', 'y_value'];
-            const rows = [header.join(',')];
+            let rows = [];
 
-            lastRenderedDatasets.forEach((dataset) => {
-                const series = dataset.fullLabel || dataset.label || '';
-                (dataset.data || []).forEach((point) => {
-                    const row = [
-                        escapeCsvValue(series),
-                        escapeCsvValue(lastXLabel),
-                        escapeCsvValue(point.x),
-                        escapeCsvValue(lastYLabel),
-                        escapeCsvValue(point.y)
-                    ];
-                    rows.push(row.join(','));
+            if (lastRenderedDatasets.length) {
+                const header = ['series', 'x_axis', 'x_value', 'y_axis', 'y_value'];
+                rows.push(header.join(','));
+                lastRenderedDatasets.forEach((dataset) => {
+                    const series = dataset.fullLabel || dataset.label || '';
+                    (dataset.data || []).forEach((point) => {
+                        rows.push([
+                            escapeCsvValue(series),
+                            escapeCsvValue(lastXLabel),
+                            escapeCsvValue(point.x),
+                            escapeCsvValue(lastYLabel),
+                            escapeCsvValue(point.y)
+                        ].join(','));
+                    });
                 });
-            });
+            }
+
+            if (lastElementDatasets.length) {
+                if (rows.length > 0) rows.push('');
+                const allMetrics = new Set();
+                lastElementDatasets.forEach(d => d.metrics.forEach(m => allMetrics.add(m)));
+                const columns = ELEMENT_DISPLAY_COLUMNS.filter(c => allMetrics.has(c.toLowerCase().trim()));
+                rows.push(['Source', ...columns.map(escapeCsvValue)].join(','));
+                lastElementDatasets.forEach(ds => {
+                    ds.records.forEach(rec => {
+                        const vals = [escapeCsvValue(ds.label)];
+                        columns.forEach(col => vals.push(escapeCsvValue(rec[col.toLowerCase().trim()] ?? '')));
+                        rows.push(vals.join(','));
+                    });
+                });
+            }
 
             const csvContent = rows.join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -434,7 +519,7 @@
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
 
-            log(`Export complete. Saved ${rows.length - 1} rows to CSV.`, 'success');
+            log(`Export complete. Saved ${rows.filter(r => r).length - 1} rows to CSV.`, 'success');
         }
 
         exportCsvBtn.addEventListener('click', exportRenderedDataToCsv);
@@ -459,6 +544,9 @@
             const xKeywords = parseKeywords(xKeywordsEl.value);
             const yKeywords = parseKeywords(yKeywordsEl.value);
             const excludeWords = parseKeywords(excludeWordsEl.value);
+
+            document.getElementById('element-data-panel').classList.add('hidden');
+            document.getElementById('element-table-container').innerHTML = '';
 
             log(`\n--- Starting analysis for: '${searchTermsRaw}' ---`);
 
@@ -521,6 +609,7 @@
                 log(`Found ${matchedTables.length} tables matching Lot #. Deep scanning cells...`);
 
                 let chartDatasets = [];
+                let elementDatasets = [];
                 let colorIndex = 0;
 
                 for (let tableName of matchedTables) {
@@ -582,6 +671,23 @@
                             log(`  -> SKIPPED: Feed Solution mismatch.`, "warn");
                             continue;
                         }
+                    }
+
+                    if (isElementPerformanceTable(tableName, values)) {
+                        log(`  -> [Element Data] Detected Performance Calculation table.`);
+                        const elemResult = extractElementData(values);
+                        if (elemResult.records.length > 0) {
+                            log(`  -> SUCCESS: Extracted ${elemResult.records.length} element measurement(s).`, "success");
+                            elementDatasets.push({
+                                tableName: tableName,
+                                label: formatLegendLabel(tableName, false),
+                                records: elemResult.records,
+                                metrics: elemResult.metrics
+                            });
+                        } else {
+                            log(`  -> SKIPPED: No valid element measurements found.`, "warn");
+                        }
+                        continue;
                     }
 
                     let xLoc = null;
@@ -647,8 +753,9 @@
                     }
                 }
 
+                const displayTerms = searchTermsRaw.length > 40 ? searchTermsRaw.substring(0, 40) + '...' : searchTermsRaw;
+
                 if (chartDatasets.length > 0) {
-                    const displayTerms = searchTermsRaw.length > 40 ? searchTermsRaw.substring(0, 40) + '...' : searchTermsRaw;
                     chartTitle.textContent = `Performance Metrics for ${displayTerms}`;
                     renderChart(chartDatasets, xKeywords[0], yKeywords[0]);
                     lastRenderedDatasets = chartDatasets;
@@ -656,13 +763,28 @@
                     lastYLabel = yKeywords[0];
                     exportCsvBtn.disabled = false;
                     log(`\nAnalysis complete. Rendered ${chartDatasets.length} lines.`, "success");
-                } else {
+                } else if (elementDatasets.length === 0) {
                     let msg = `No valid data found for lot(s) '${searchTermsRaw}'`;
                     if (instrumentTerms.length > 0) msg += ` on instrument(s) '${instrumentFilterEl.value}'`;
                     log(msg + ".", "error");
                     chartTitle.textContent = `No valid data found`;
                     if (chartInstance) chartInstance.destroy();
                     resetRenderedDataState();
+                }
+
+                if (elementDatasets.length > 0) {
+                    if (chartDatasets.length === 0) {
+                        if (chartInstance) chartInstance.destroy();
+                        document.getElementById('chart-container').style.display = 'none';
+                    }
+                    document.getElementById('element-title').textContent = `Element Performance for ${displayTerms}`;
+                    renderElementData(elementDatasets);
+                    lastElementDatasets = elementDatasets;
+                    exportCsvBtn.disabled = false;
+                    const totalRecords = elementDatasets.reduce((s, d) => s + d.records.length, 0);
+                    log(`\nElement data: ${totalRecords} measurement(s) from ${elementDatasets.length} table(s).`, "success");
+                } else {
+                    document.getElementById('chart-container').style.display = '';
                 }
 
             } catch (err) {
@@ -750,6 +872,45 @@
                 row.appendChild(text);
                 legendContainer.appendChild(row);
             });
+        }
+
+        function renderElementData(datasets) {
+            const panel = document.getElementById('element-data-panel');
+            const container = document.getElementById('element-table-container');
+            panel.classList.remove('hidden');
+
+            const allMetrics = new Set();
+            datasets.forEach(d => d.metrics.forEach(m => allMetrics.add(m)));
+            const columns = ELEMENT_DISPLAY_COLUMNS.filter(c => allMetrics.has(c.toLowerCase().trim()));
+
+            let html = '<table class="w-full text-sm border-collapse">';
+            html += '<thead><tr class="bg-slate-100 border-b border-slate-300">';
+            html += '<th class="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Source</th>';
+            columns.forEach(col => {
+                html += `<th class="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">${col}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            datasets.forEach(ds => {
+                ds.records.forEach(rec => {
+                    html += '<tr class="border-b border-slate-200 hover:bg-slate-50">';
+                    html += `<td class="px-3 py-2 text-xs text-slate-600 max-w-[200px] truncate" title="${ds.label}">${ds.label}</td>`;
+                    columns.forEach(col => {
+                        const key = col.toLowerCase().trim();
+                        const val = rec[key];
+                        let display = val ?? '—';
+                        if (val && key !== 'serial #' && key !== 'cell #' && key !== 'date tested') {
+                            const num = parseFloat(val);
+                            if (!isNaN(num)) display = num % 1 === 0 ? num.toString() : num.toFixed(2);
+                        }
+                        html += `<td class="px-3 py-2 text-right text-sm text-slate-800 tabular-nums whitespace-nowrap">${display}</td>`;
+                    });
+                    html += '</tr>';
+                });
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
         }
 
         const feedBtn = document.getElementById('feed-dropdown-btn');
