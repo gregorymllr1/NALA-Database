@@ -120,8 +120,8 @@
                 <label class="block text-sm font-semibold text-slate-700 border-b pb-2">2. Search Parameters</label>
                 
                 <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Search Terms (Comma separated)</label>
-                    <input type="text" id="search-term" value="7GR1, 7GR25" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Search Terms (Comma separated — supports <code>*</code>, <code>?</code>, and <code>A13639..A13663</code> ranges)</label>
+                    <input type="text" id="search-term" value="7GR1, 7GR25" title="Comma-separated terms (OR logic). Wildcards: * = any chars, ? = one char. Range: prefix+number..prefix+number, e.g. A13639..A13663" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
 
                 <div>
@@ -365,6 +365,65 @@
             return rawString.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
         }
 
+        // Compile a single Search Term into a matcher object.
+        // Supports: exact match, * (any chars), ? (one char), and "prefixN..prefixM" numeric ranges.
+        // Each matcher exposes { raw, kind, test(haystack) } where haystack is searched case-insensitively.
+        function compileSearchTerm(term) {
+            const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            if (term.includes('..')) {
+                const parts = term.split('..');
+                if (parts.length === 2) {
+                    const left  = parts[0].trim();
+                    const right = parts[1].trim();
+                    const m1 = left.match(/^(.*?)(\d+)$/);
+                    const m2 = right.match(/^(.*?)(\d+)$/);
+                    if (m1 && m2 && m1[1].toLowerCase() === m2[1].toLowerCase()) {
+                        const prefix = m1[1];
+                        const lo = Math.min(parseInt(m1[2], 10), parseInt(m2[2], 10));
+                        const hi = Math.max(parseInt(m1[2], 10), parseInt(m2[2], 10));
+                        const rx = new RegExp(`(^|[^a-z0-9])(${escapeRegex(prefix)})(\\d+)(?=[^a-z0-9]|$)`, 'gi');
+                        return {
+                            raw: term,
+                            kind: 'range',
+                            test(haystack) {
+                                rx.lastIndex = 0;
+                                let m;
+                                while ((m = rx.exec(String(haystack))) !== null) {
+                                    const n = parseInt(m[3], 10);
+                                    if (n >= lo && n <= hi) return true;
+                                }
+                                return false;
+                            }
+                        };
+                    }
+                }
+                // Malformed range falls through to exact-match below
+            }
+
+            if (term.includes('*') || term.includes('?')) {
+                // Escape everything except * and ?, then translate wildcards.
+                // * = any run of alphanumerics, ? = exactly one alphanumeric.
+                const pattern = term
+                    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+                    .replace(/\*/g, '[a-z0-9]*')
+                    .replace(/\?/g, '[a-z0-9]');
+                const rx = new RegExp(`(^|[^a-z0-9])${pattern}(?=[^a-z0-9]|$)`, 'i');
+                return { raw: term, kind: 'wildcard', test: (h) => rx.test(String(h)) };
+            }
+
+            const rx = new RegExp(`(^|[^a-z0-9])${escapeRegex(term)}([^a-z0-9]|$)`, 'i');
+            return { raw: term, kind: 'exact', test: (h) => rx.test(String(h)) };
+        }
+
+        function compileSearchTerms(rawString) {
+            return rawString
+                .split(',')
+                .map(s => s.trim())
+                .filter(s => s.length > 0)
+                .map(compileSearchTerm);
+        }
+
         function extractNumber(val) {
             if (val === null || val === undefined || val === '') return null;
             const strVal = String(val).replace(/,/g, '');
@@ -536,10 +595,10 @@
             }
 
             const searchTermsRaw = searchTermEl.value;
-            const searchTerms = parseKeywords(searchTermsRaw);
+            const searchMatchers = compileSearchTerms(searchTermsRaw);
             const instrumentTerms = parseKeywords(instrumentFilterEl.value);
             
-            if (searchTerms.length === 0) return;
+            if (searchMatchers.length === 0) return;
 
             const xKeywords = parseKeywords(xKeywordsEl.value);
             const yKeywords = parseKeywords(yKeywordsEl.value);
@@ -579,21 +638,18 @@
                     let searchTargets = sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName;
                     
                     let isSearchMatch = false;
-                    searchTerms.forEach(term => {
-                        const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        const exactMatchRegex = new RegExp(`(^|[^a-z0-9])${safeTerm}([^a-z0-9]|$)`, 'i');
-                        
-                        if (exactMatchRegex.test(searchTargets)) {
+                    searchMatchers.forEach(matcher => {
+                        if (matcher.test(searchTargets)) {
                             isSearchMatch = true;
-                            foundTerms.add(term);
+                            foundTerms.add(matcher.raw);
                         }
                     });
 
                     if (isSearchMatch) matchedTables.push(tableName);
                 }
 
-                searchTerms.forEach(term => {
-                    if (!foundTerms.has(term)) log(`CRITICAL: Database contains 0 tables for '${term}'.`, "error");
+                searchMatchers.forEach(matcher => {
+                    if (!foundTerms.has(matcher.raw)) log(`CRITICAL: Database contains 0 tables for '${matcher.raw}'.`, "error");
                 });
 
                 if (matchedTables.length === 0) {
@@ -1092,18 +1148,15 @@
         function renderFeedDropdown() {
             if (!tableMetaCache.length) return;
 
-            const searchTerms = parseKeywords(searchTermEl.value);
+            const searchMatchers = compileSearchTerms(searchTermEl.value);
 
-            // Filter cache to tables that match the current search terms (same regex as Analyze flow)
+            // Filter cache to tables that match the current search terms (shared matcher logic with Analyze flow)
             let allowedTables;
-            if (searchTerms.length === 0) {
+            if (searchMatchers.length === 0) {
                 allowedTables = tableMetaCache;
             } else {
                 allowedTables = tableMetaCache.filter(meta =>
-                    searchTerms.some(term => {
-                        const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        return new RegExp(`(^|[^a-z0-9])${safeTerm}([^a-z0-9]|$)`, 'i').test(meta.searchHaystack);
-                    })
+                    searchMatchers.some(matcher => matcher.test(meta.searchHaystack))
                 );
             }
 
@@ -1135,11 +1188,11 @@
             feedList.innerHTML = '';
 
             if (sortedCanonical.length === 0) {
-                const msg = searchTerms.length > 0
+                const msg = searchMatchers.length > 0
                     ? 'No feed solutions for the current Search Terms.'
                     : 'No feed solutions found in DB.';
                 feedList.innerHTML = `<div class="text-sm text-slate-500 italic px-2">${msg}</div>`;
-                feedBtnText.innerText = searchTerms.length > 0 ? 'No Matching Solutions' : 'No Solutions Found';
+                feedBtnText.innerText = searchMatchers.length > 0 ? 'No Matching Solutions' : 'No Solutions Found';
                 return;
             }
 
