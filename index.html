@@ -435,6 +435,14 @@
         const ELEMENT_METRIC_KEYWORDS = ['serial #', 'cell #', 'sqft', 'recovery', 'temp', 'psi', 'cond', 'tds ppm', 'sr%', 'gpm', 'gpd', 'gfd', 'lmh', 'lmh/bar', 'gpm/psi', 'date tested'];
         const ELEMENT_DISPLAY_COLUMNS = ['Serial #', 'Cell #', 'Date Tested', 'sqft', 'psi', 'Temp', 'Recovery', 'Cond', 'TDS ppm', 'SR%', 'gpm', 'gpd', 'gfd', 'lmh', 'lmh/bar', 'gpm/psi'];
 
+        function isSummaryGraphTable(tableName) {
+            // The "Summary Graph" worksheet is a derived chart tab built from the
+            // other sheets, not raw measurement data. Its table name still contains
+            // the lot numbers, so it matches Search Terms and gets plotted as an
+            // unwanted extra line — exclude it from analysis entirely.
+            return /summary[_ ]*graph/i.test(tableName);
+        }
+
         function isElementPerformanceTable(tableName, values) {
             if (/performance_calc/i.test(tableName)) return true;
             const probeKeys = ['serial #', 'sr%', 'lmh', 'gfd', 'gpm'];
@@ -618,6 +626,8 @@
                 let matchedTables = [];
                 
                 for (let tableName of allTables) {
+                    if (isSummaryGraphTable(tableName)) continue;
+
                     const dataResult = dbInstance.exec(`SELECT * FROM "${tableName}"`);
                     if (dataResult.length === 0) continue;
                     

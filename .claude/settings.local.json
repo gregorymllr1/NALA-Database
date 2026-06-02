@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(python -c \"import sqlite3; c=sqlite3.connect\\('nala_rd_data.db'\\); cur=c.execute\\(\\\\\"SELECT name FROM sqlite_master WHERE type='table' AND lower\\(name\\) LIKE '%summary%' OR lower\\(name\\) LIKE '%graph%'\\\\\"\\); rows=[r[0] for r in cur.fetchall\\(\\)]; print\\(len\\(rows\\)\\); [print\\(r\\) for r in rows[:40]]\")",
+      "Bash(./.venv/Scripts/python.exe -c \"import sqlite3; c=sqlite3.connect\\('nala_rd_data.db'\\); cur=c.execute\\(\\\\\"SELECT name FROM sqlite_master WHERE type='table' AND \\(lower\\(name\\) LIKE '%summary%' OR lower\\(name\\) LIKE '%graph%'\\)\\\\\"\\); rows=[r[0] for r in cur.fetchall\\(\\)]; print\\(len\\(rows\\)\\); [print\\(r\\) for r in rows[:50]]\")"
     ]
   }
 }
