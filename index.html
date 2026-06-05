@@ -173,6 +173,23 @@
                     </div>
                 </div>
 
+                <div class="relative z-10">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Pressure Filter (Multi-Select)</label>
+                    <button id="pressure-dropdown-btn" class="w-full text-left px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700 flex justify-between items-center">
+                        <span id="pressure-btn-text" class="truncate pr-2">Load DB to populate...</span>
+                        <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400 shrink-0"></i>
+                    </button>
+                    <div id="pressure-dropdown-panel" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 flex flex-col">
+                        <div class="p-2 border-b border-slate-200 flex space-x-2">
+                            <input type="text" id="pressure-search" placeholder="Search..." class="flex-1 px-2 py-1 text-sm border border-slate-300 rounded-md focus:outline-none focus:border-blue-500">
+                            <button id="pressure-clear-btn" class="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-300 rounded-md hover:bg-slate-200 transition-colors shadow-sm focus:outline-none">Clear</button>
+                        </div>
+                        <div id="pressure-list" class="overflow-y-auto p-2 space-y-1 flex-1 bg-slate-50">
+                            <div class="text-xs text-slate-500 italic px-2 py-1">Please select a .db file first.</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div>
                     <label class="block text-xs font-medium text-slate-500 mb-1">X-Axis</label>
                     <select id="x-axis-select" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700 bg-white">
@@ -352,6 +369,48 @@
             return Array.from(instrumentList.querySelectorAll('.instrument-checkbox:checked'))
                 .map(cb => cb.value)
                 .filter(v => v !== 'none');
+        }
+
+        // Checked Feed Solution entries expanded to their raw DB values + 2nd-pass requirement.
+        function getCheckedFeedEntries() {
+            const entries = [];
+            document.querySelectorAll('.feed-checkbox:checked').forEach(cb => {
+                try {
+                    const raws = new Set(JSON.parse(cb.dataset.raw || '[]'));
+                    const rsp = cb.dataset.requireSecondPass;
+                    const requireSecondPass = rsp === 'true' ? true : rsp === 'false' ? false : null;
+                    entries.push({ raws, requireSecondPass });
+                } catch (e) {}
+            });
+            return entries;
+        }
+
+        // Does a cached table match the checked Feed Solution selection? (mirrors Analyze flow)
+        function tableMetaFeedMatch(meta, checkedFeedEntries) {
+            return checkedFeedEntries.some(entry =>
+                meta.feedRaws.some(v => entry.raws.has(v)) &&
+                (entry.requireSecondPass === null || entry.requireSecondPass === meta.is2ndPass)
+            );
+        }
+
+        // Currently checked Pressure filter values (numeric strings, e.g. "220").
+        function getSelectedPressures() {
+            return Array.from(document.querySelectorAll('.pressure-checkbox:checked')).map(cb => cb.value);
+        }
+
+        // Extract pressure value(s) from a live table's cell grid (label "Pressure (PSI)" -> adjacent cell).
+        function extractTablePressures(values) {
+            const out = new Set();
+            for (let r = 0; r < values.length; r++) {
+                for (let c = 0; c < values[r].length; c++) {
+                    const cellLc = String(values[r][c]).toLowerCase();
+                    if (cellLc.includes('pressure') && cellLc.includes('psi') && c + 1 < values[r].length) {
+                        const num = extractNumber(values[r][c + 1]);
+                        if (num !== null) out.add(String(num));
+                    }
+                }
+            }
+            return out;
         }
 
         function getSelectedInstrumentLabel() {
@@ -806,15 +865,7 @@
 
                     // Expand checked canonical labels to their full set of raw DB values.
                     // Each entry may also impose a 2nd-pass requirement (true | false | null=any).
-                    const checkedFeedEntries = [];
-                    document.querySelectorAll('.feed-checkbox:checked').forEach(cb => {
-                        try {
-                            const raws = new Set(JSON.parse(cb.dataset.raw || '[]'));
-                            const rsp = cb.dataset.requireSecondPass;
-                            const requireSecondPass = rsp === 'true' ? true : rsp === 'false' ? false : null;
-                            checkedFeedEntries.push({ raws, requireSecondPass });
-                        } catch(e) {}
-                    });
+                    const checkedFeedEntries = getCheckedFeedEntries();
                     if (checkedFeedEntries.length > 0) {
                         let tableFeedVals = [];
                         for (let r = 0; r < values.length; r++) {
@@ -831,6 +882,17 @@
                         );
                         if (!hasMatch) {
                             log(`  -> SKIPPED: Feed Solution mismatch.`, "warn");
+                            continue;
+                        }
+                    }
+
+                    // Pressure filter — keep only sheets whose B18 pressure matches a selected value.
+                    const selectedPressures = getSelectedPressures();
+                    if (selectedPressures.length > 0) {
+                        const tablePressures = extractTablePressures(values);
+                        const hasPressureMatch = selectedPressures.some(p => tablePressures.has(p));
+                        if (!hasPressureMatch) {
+                            log(`  -> SKIPPED: Pressure mismatch.`, "warn");
                             continue;
                         }
                     }
@@ -1142,6 +1204,9 @@
                     : 'All Solutions (No Filter)';
             } else if (checkedCount === 1) feedBtnText.innerText = '1 Solution Selected';
             else feedBtnText.innerText = `${checkedCount} Solutions Selected`;
+
+            // Pressure options depend on the Feed Solution selection — refresh them.
+            renderPressureDropdown();
         });
 
         // --- UPGRADED: Clear All Selections Logic ---
@@ -1151,6 +1216,47 @@
             feedSearch.value = '';
             document.querySelectorAll('.feed-item').forEach(item => item.style.display = 'flex');
             document.getElementById('feed-list').dispatchEvent(new Event('change'));
+        });
+
+        // --- Pressure Filter dropdown wiring ---
+        const pressureBtn = document.getElementById('pressure-dropdown-btn');
+        const pressurePanel = document.getElementById('pressure-dropdown-panel');
+        const pressureSearch = document.getElementById('pressure-search');
+        const pressureBtnText = document.getElementById('pressure-btn-text');
+        const pressureClearBtn = document.getElementById('pressure-clear-btn');
+
+        pressureBtn.addEventListener('click', () => pressurePanel.classList.toggle('hidden'));
+        document.addEventListener('click', (e) => {
+            if (!pressureBtn.contains(e.target) && !pressurePanel.contains(e.target)) pressurePanel.classList.add('hidden');
+        });
+
+        pressureSearch.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.pressure-item').forEach(item => {
+                const labelText = item.querySelector('label').innerText.toLowerCase();
+                item.style.display = labelText.includes(term) ? 'flex' : 'none';
+            });
+        });
+
+        // Persist checked pressures so cascading re-renders can restore them
+        let lastCheckedPressures = new Set();
+        document.getElementById('pressure-list').addEventListener('change', () => {
+            const checked = Array.from(document.querySelectorAll('.pressure-checkbox:checked'));
+            lastCheckedPressures = new Set(checked.map(cb => cb.value));
+            const checkedCount = checked.length;
+            if (checkedCount === 0) {
+                const total = document.querySelectorAll('.pressure-checkbox').length;
+                pressureBtnText.innerText = total > 0 ? `All Pressures (${total})` : 'All Pressures (No Filter)';
+            } else if (checkedCount === 1) pressureBtnText.innerText = '1 Pressure Selected';
+            else pressureBtnText.innerText = `${checkedCount} Pressures Selected`;
+        });
+
+        pressureClearBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.pressure-checkbox').forEach(cb => cb.checked = false);
+            pressureSearch.value = '';
+            document.querySelectorAll('.pressure-item').forEach(item => item.style.display = 'flex');
+            document.getElementById('pressure-list').dispatchEvent(new Event('change'));
         });
 
         function normalizeFeedSolution(raw) {
@@ -1260,6 +1366,9 @@
                 // Instruments detected on this sheet (matches the Analyze-flow instrument logic:
                 // scan column headers and every cell for any known instrument name).
                 const instruments = new Set();
+                // Pressure values (PSI) detected on this sheet. The label "Pressure (PSI)"
+                // lives at cell A18 with the value in the adjacent cell B18.
+                const pressures = new Set();
                 for (let c = 0; c < columns.length; c++) {
                     const colLc = String(columns[c]).toLowerCase();
                     instrumentKeys.forEach(inst => { if (colLc.includes(inst)) instruments.add(inst); });
@@ -1278,6 +1387,10 @@
                             const val = String(values[r][c + 1]).trim();
                             if (val && val !== 'null' && !isLikelyHeaderLabel(val)) feedRaws.push(val);
                         }
+                        if (cellLc.includes('pressure') && cellLc.includes('psi') && c + 1 < values[r].length) {
+                            const num = extractNumber(values[r][c + 1]);
+                            if (num !== null) pressures.add(String(num));
+                        }
                     }
                 }
 
@@ -1286,6 +1399,7 @@
                     searchHaystack: sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName,
                     feedRaws,
                     instruments,
+                    pressures,
                     is2ndPass: /(2nd[\s_]*pass|second[\s_]*pass)/i.test(tableName)
                 });
             }
@@ -1353,6 +1467,7 @@
                     : 'No feed solutions found in DB.';
                 feedList.innerHTML = `<div class="text-sm text-slate-500 italic px-2">${msg}</div>`;
                 feedBtnText.innerText = filtered ? 'No Matching Solutions' : 'No Solutions Found';
+                renderPressureDropdown();
                 return;
             }
 
@@ -1390,6 +1505,84 @@
 
             // Fire change to sync button text without altering lastCheckedCanonicals mid-render
             feedList.dispatchEvent(new Event('change'));
+        }
+
+        // Renders the Pressure filter, dependent on Search Terms + Instruments + Feed Solution.
+        function renderPressureDropdown() {
+            const pressureList = document.getElementById('pressure-list');
+            if (!pressureList) return;
+
+            if (!tableMetaCache.length) {
+                pressureList.innerHTML = '<div class="text-xs text-slate-500 italic px-2 py-1">Please select a .db file first.</div>';
+                return;
+            }
+
+            const searchMatchers = compileSearchTerms(searchTermEl.value);
+            const instrumentTerms = getSelectedInstrumentTerms();
+            const checkedFeedEntries = getCheckedFeedEntries();
+
+            // Apply the same upstream filters as the other dropdowns / Analyze flow.
+            let allowedTables = tableMetaCache;
+            if (searchMatchers.length > 0) {
+                allowedTables = allowedTables.filter(meta =>
+                    searchMatchers.some(matcher => matcher.test(meta.searchHaystack))
+                );
+            }
+            if (instrumentTerms.length > 0) {
+                allowedTables = allowedTables.filter(meta =>
+                    instrumentTerms.some(inst => meta.instruments && meta.instruments.has(inst))
+                );
+            }
+            if (checkedFeedEntries.length > 0) {
+                allowedTables = allowedTables.filter(meta => tableMetaFeedMatch(meta, checkedFeedEntries));
+            }
+
+            const pressureSet = new Set();
+            allowedTables.forEach(meta => {
+                if (meta.pressures) meta.pressures.forEach(p => pressureSet.add(p));
+            });
+
+            // Sort numerically ascending
+            const sortedPressures = Array.from(pressureSet).sort((a, b) => Number(a) - Number(b));
+            pressureList.innerHTML = '';
+
+            if (sortedPressures.length === 0) {
+                const filtered = searchMatchers.length > 0 || instrumentTerms.length > 0 || checkedFeedEntries.length > 0;
+                const msg = filtered
+                    ? 'No pressures for the current filters.'
+                    : 'No pressures found in DB.';
+                pressureList.innerHTML = `<div class="text-sm text-slate-500 italic px-2">${msg}</div>`;
+                pressureBtnText.innerText = filtered ? 'No Matching Pressures' : 'No Pressures Found';
+                return;
+            }
+
+            sortedPressures.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer pressure-item';
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = p;
+                input.className = 'pressure-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2 cursor-pointer';
+                if (lastCheckedPressures.has(p)) input.checked = true;
+
+                const label = document.createElement('label');
+                label.className = 'text-xs text-slate-700 truncate w-full cursor-pointer';
+                label.textContent = `${p} PSI`;
+
+                div.appendChild(input);
+                div.appendChild(label);
+                div.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        input.checked = !input.checked;
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                });
+                pressureList.appendChild(div);
+            });
+
+            // Sync button text without altering lastCheckedPressures mid-render
+            pressureList.dispatchEvent(new Event('change'));
         }
 
         // Debounced re-render of feed dropdown when Search Terms change
