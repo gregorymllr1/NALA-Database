@@ -124,13 +124,13 @@
                     <input type="text" id="search-term" value="7GR1, 7GR25" title="Comma-separated terms (OR logic). Wildcards: * = any chars, ? = one char. Range: prefix+number..prefix+number, e.g. A13639..A13663" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
 
-                <div class="relative z-20">
+                <div class="relative z-30">
                     <label class="block text-xs font-medium text-slate-500 mb-1">Instrument Filter (Multi-Select)</label>
                     <button id="instrument-dropdown-btn" class="w-full text-left px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700 flex justify-between items-center">
                         <span id="instrument-btn-text" class="truncate pr-2">None (No Filter)</span>
                         <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400 shrink-0"></i>
                     </button>
-                    <div id="instrument-dropdown-panel" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-300 rounded-md shadow-lg">
+                    <div id="instrument-dropdown-panel" class="hidden absolute left-0 right-0 mt-1 z-40 bg-white border border-slate-300 rounded-md shadow-lg overflow-hidden">
                         <div id="instrument-list" class="p-2 space-y-1 bg-slate-50">
                             <label class="flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer">
                                 <input type="checkbox" value="none" class="instrument-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2" checked>
