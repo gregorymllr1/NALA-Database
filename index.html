@@ -147,13 +147,20 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">X-Axis Keywords (Comma separated, priority order)</label>
-                    <textarea id="x-keywords" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700">time elapsed, elapsed, run time, time (h), time (hrs), time</textarea>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">X-Axis</label>
+                    <select id="x-axis-select" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700 bg-white">
+                        <option value="time_elapsed" selected>Time Elapsed</option>
+                        <option value="flux">Flux</option>
+                        <option value="rejection">Rejection</option>
+                    </select>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Y-Axis Keywords (Comma separated)</label>
-                    <input type="text" id="y-keywords" value="flux" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Y-Axis</label>
+                    <select id="y-axis-select" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700 bg-white">
+                        <option value="flux" selected>Flux</option>
+                        <option value="rejection">Rejection</option>
+                    </select>
                 </div>
 
                 <div>
@@ -274,9 +281,35 @@
         
         const searchTermEl = document.getElementById('search-term');
         const instrumentFilterEl = document.getElementById('instrument-filter');
-        const xKeywordsEl = document.getElementById('x-keywords');
-        const yKeywordsEl = document.getElementById('y-keywords');
+        const xAxisSelectEl = document.getElementById('x-axis-select');
+        const yAxisSelectEl = document.getElementById('y-axis-select');
         const excludeWordsEl = document.getElementById('exclude-words');
+
+        const X_AXIS_OPTIONS = {
+            time_elapsed: {
+                label: 'Time Elapsed',
+                keywords: ['elapsed', 'run time', 'time (h)', 'time', 'time (hrs)']
+            },
+            flux: {
+                label: 'Flux',
+                keywords: ['flux']
+            },
+            rejection: {
+                label: 'Rejection',
+                keywords: ['rejection']
+            }
+        };
+
+        const Y_AXIS_OPTIONS = {
+            flux: {
+                label: 'Flux',
+                keywords: ['flux']
+            },
+            rejection: {
+                label: 'Rejection',
+                keywords: ['rejection']
+            }
+        };
 
         document.getElementById('clear-log-btn').addEventListener('click', () => {
             logWindow.innerHTML = '<p class="text-blue-400">> Logs cleared.</p>';
@@ -608,8 +641,10 @@
             
             if (searchMatchers.length === 0) return;
 
-            const xKeywords = parseKeywords(xKeywordsEl.value);
-            const yKeywords = parseKeywords(yKeywordsEl.value);
+            const xAxisChoice = X_AXIS_OPTIONS[xAxisSelectEl.value] || X_AXIS_OPTIONS.time_elapsed;
+            const yAxisChoice = Y_AXIS_OPTIONS[yAxisSelectEl.value] || Y_AXIS_OPTIONS.flux;
+            const xKeywords = xAxisChoice.keywords;
+            const yKeywords = yAxisChoice.keywords;
             const excludeWords = parseKeywords(excludeWordsEl.value);
 
             document.getElementById('element-data-panel').classList.add('hidden');
@@ -823,10 +858,10 @@
 
                 if (chartDatasets.length > 0) {
                     chartTitle.textContent = `Performance Metrics for ${displayTerms}`;
-                    renderChart(chartDatasets, xKeywords[0], yKeywords[0]);
+                    renderChart(chartDatasets, xAxisChoice.label, yAxisChoice.label);
                     lastRenderedDatasets = chartDatasets;
-                    lastXLabel = xKeywords[0];
-                    lastYLabel = yKeywords[0];
+                    lastXLabel = xAxisChoice.label;
+                    lastYLabel = yAxisChoice.label;
                     exportCsvBtn.disabled = false;
                     log(`\nAnalysis complete. Rendered ${chartDatasets.length} lines.`, "success");
                 } else if (elementDatasets.length === 0) {
