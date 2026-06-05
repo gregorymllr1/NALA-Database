@@ -124,9 +124,36 @@
                     <input type="text" id="search-term" value="7GR1, 7GR25" title="Comma-separated terms (OR logic). Wildcards: * = any chars, ? = one char. Range: prefix+number..prefix+number, e.g. A13639..A13663" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                 </div>
 
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Instrument Filter (Optional)</label>
-                    <input type="text" id="instrument-filter" placeholder="e.g., Nammu, Neptune, Poseidon" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700">
+                <div class="relative z-20">
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Instrument Filter (Multi-Select)</label>
+                    <button id="instrument-dropdown-btn" class="w-full text-left px-3 py-2 border border-slate-300 rounded-md shadow-sm bg-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-700 flex justify-between items-center">
+                        <span id="instrument-btn-text" class="truncate pr-2">None (No Filter)</span>
+                        <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400 shrink-0"></i>
+                    </button>
+                    <div id="instrument-dropdown-panel" class="hidden absolute left-0 right-0 mt-1 bg-white border border-slate-300 rounded-md shadow-lg">
+                        <div id="instrument-list" class="p-2 space-y-1 bg-slate-50">
+                            <label class="flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer">
+                                <input type="checkbox" value="none" class="instrument-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2" checked>
+                                <span class="text-xs text-slate-700">None</span>
+                            </label>
+                            <label class="flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer">
+                                <input type="checkbox" value="nammu" class="instrument-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2">
+                                <span class="text-xs text-slate-700">Nammu</span>
+                            </label>
+                            <label class="flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer">
+                                <input type="checkbox" value="neptune" class="instrument-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2">
+                                <span class="text-xs text-slate-700">Neptune</span>
+                            </label>
+                            <label class="flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer">
+                                <input type="checkbox" value="poseidon" class="instrument-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2">
+                                <span class="text-xs text-slate-700">Poseidon</span>
+                            </label>
+                            <label class="flex items-center px-2 py-1 hover:bg-slate-100 rounded cursor-pointer">
+                                <input type="checkbox" value="phoenix" class="instrument-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded mr-2">
+                                <span class="text-xs text-slate-700">Phoenix</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="relative z-20">
@@ -280,10 +307,20 @@
         const chartTitle = document.getElementById('chart-title');
         
         const searchTermEl = document.getElementById('search-term');
-        const instrumentFilterEl = document.getElementById('instrument-filter');
+        const instrumentDropdownBtn = document.getElementById('instrument-dropdown-btn');
+        const instrumentDropdownPanel = document.getElementById('instrument-dropdown-panel');
+        const instrumentBtnText = document.getElementById('instrument-btn-text');
+        const instrumentList = document.getElementById('instrument-list');
         const xAxisSelectEl = document.getElementById('x-axis-select');
         const yAxisSelectEl = document.getElementById('y-axis-select');
         const excludeWordsEl = document.getElementById('exclude-words');
+
+        const INSTRUMENT_LABELS = {
+            nammu: 'Nammu',
+            neptune: 'Neptune',
+            poseidon: 'Poseidon',
+            phoenix: 'Phoenix'
+        };
 
         const X_AXIS_OPTIONS = {
             time_elapsed: {
@@ -310,6 +347,29 @@
                 keywords: ['rejection']
             }
         };
+
+        function getSelectedInstrumentTerms() {
+            return Array.from(instrumentList.querySelectorAll('.instrument-checkbox:checked'))
+                .map(cb => cb.value)
+                .filter(v => v !== 'none');
+        }
+
+        function getSelectedInstrumentLabel() {
+            const selected = getSelectedInstrumentTerms();
+            if (selected.length === 0) return 'None';
+            return selected.map(v => INSTRUMENT_LABELS[v] || v).join(', ');
+        }
+
+        function syncInstrumentButtonText() {
+            const selected = getSelectedInstrumentTerms();
+            if (selected.length === 0) {
+                instrumentBtnText.innerText = 'None (No Filter)';
+            } else if (selected.length <= 2) {
+                instrumentBtnText.innerText = selected.map(v => INSTRUMENT_LABELS[v] || v).join(', ');
+            } else {
+                instrumentBtnText.innerText = `${selected.length} Instruments Selected`;
+            }
+        }
 
         document.getElementById('clear-log-btn').addEventListener('click', () => {
             logWindow.innerHTML = '<p class="text-blue-400">> Logs cleared.</p>';
@@ -637,7 +697,8 @@
 
             const searchTermsRaw = searchTermEl.value;
             const searchMatchers = compileSearchTerms(searchTermsRaw);
-            const instrumentTerms = parseKeywords(instrumentFilterEl.value);
+            const instrumentTerms = getSelectedInstrumentTerms();
+            const instrumentFilterLabel = getSelectedInstrumentLabel();
             
             if (searchMatchers.length === 0) return;
 
@@ -699,7 +760,7 @@
 
                 if (matchedTables.length === 0) {
                     let msg = `No data found for lot(s) '${searchTermsRaw}'`;
-                    if (instrumentTerms.length > 0) msg += ` on instrument(s) '${instrumentFilterEl.value}'`;
+                    if (instrumentTerms.length > 0) msg += ` on instrument(s) '${instrumentFilterLabel}'`;
                     log(msg + ".", "error");
                     chartTitle.textContent = `No valid data found`;
                     if (chartInstance) chartInstance.destroy();
@@ -866,7 +927,7 @@
                     log(`\nAnalysis complete. Rendered ${chartDatasets.length} lines.`, "success");
                 } else if (elementDatasets.length === 0) {
                     let msg = `No valid data found for lot(s) '${searchTermsRaw}'`;
-                    if (instrumentTerms.length > 0) msg += ` on instrument(s) '${instrumentFilterEl.value}'`;
+                    if (instrumentTerms.length > 0) msg += ` on instrument(s) '${instrumentFilterLabel}'`;
                     log(msg + ".", "error");
                     chartTitle.textContent = `No valid data found`;
                     if (chartInstance) chartInstance.destroy();
@@ -1016,6 +1077,37 @@
             html += '</tbody></table>';
             container.innerHTML = html;
         }
+
+        instrumentDropdownBtn.addEventListener('click', () => instrumentDropdownPanel.classList.toggle('hidden'));
+        document.addEventListener('click', (e) => {
+            if (!instrumentDropdownBtn.contains(e.target) && !instrumentDropdownPanel.contains(e.target)) {
+                instrumentDropdownPanel.classList.add('hidden');
+            }
+        });
+
+        instrumentList.addEventListener('change', (e) => {
+            const target = e.target;
+            if (!target.classList.contains('instrument-checkbox')) return;
+
+            if (target.value === 'none' && target.checked) {
+                instrumentList.querySelectorAll('.instrument-checkbox').forEach(cb => {
+                    if (cb.value !== 'none') cb.checked = false;
+                });
+            } else if (target.value !== 'none' && target.checked) {
+                const noneCheckbox = instrumentList.querySelector('.instrument-checkbox[value="none"]');
+                if (noneCheckbox) noneCheckbox.checked = false;
+            }
+
+            const checked = instrumentList.querySelectorAll('.instrument-checkbox:checked');
+            if (checked.length === 0) {
+                const noneCheckbox = instrumentList.querySelector('.instrument-checkbox[value="none"]');
+                if (noneCheckbox) noneCheckbox.checked = true;
+            }
+
+            syncInstrumentButtonText();
+        });
+
+        syncInstrumentButtonText();
 
         const feedBtn = document.getElementById('feed-dropdown-btn');
         const feedPanel = document.getElementById('feed-dropdown-panel');
