@@ -1105,6 +1105,7 @@
             }
 
             syncInstrumentButtonText();
+            renderFeedDropdown();
         });
 
         syncInstrumentButtonText();
@@ -1246,16 +1247,27 @@
             const allTables = tablesResult[0].values.map(row => row[0]);
             tableMetaCache = [];
 
+            const instrumentKeys = Object.keys(INSTRUMENT_LABELS);
+
             for (let tableName of allTables) {
                 const dataResult = dbInstance.exec(`SELECT * FROM "${tableName}"`);
                 if (dataResult.length === 0) continue;
+                const columns = dataResult[0].columns;
                 const values = dataResult[0].values;
 
                 let sheetSampleNames = [];
                 let feedRaws = [];
+                // Instruments detected on this sheet (matches the Analyze-flow instrument logic:
+                // scan column headers and every cell for any known instrument name).
+                const instruments = new Set();
+                for (let c = 0; c < columns.length; c++) {
+                    const colLc = String(columns[c]).toLowerCase();
+                    instrumentKeys.forEach(inst => { if (colLc.includes(inst)) instruments.add(inst); });
+                }
                 for (let r = 0; r < values.length; r++) {
                     for (let c = 0; c < values[r].length; c++) {
                         const cellLc = String(values[r][c]).toLowerCase();
+                        instrumentKeys.forEach(inst => { if (cellLc.includes(inst)) instruments.add(inst); });
                         if (cellLc.includes('sample name')) {
                             for (let col = c + 1; col < values[r].length; col++) {
                                 const val = String(values[r][col]).trim();
@@ -1273,6 +1285,7 @@
                     tableName,
                     searchHaystack: sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName,
                     feedRaws,
+                    instruments,
                     is2ndPass: /(2nd[\s_]*pass|second[\s_]*pass)/i.test(tableName)
                 });
             }
@@ -1286,6 +1299,7 @@
             if (!tableMetaCache.length) return;
 
             const searchMatchers = compileSearchTerms(searchTermEl.value);
+            const instrumentTerms = getSelectedInstrumentTerms();
 
             // Filter cache to tables that match the current search terms (shared matcher logic with Analyze flow)
             let allowedTables;
@@ -1294,6 +1308,14 @@
             } else {
                 allowedTables = tableMetaCache.filter(meta =>
                     searchMatchers.some(matcher => matcher.test(meta.searchHaystack))
+                );
+            }
+
+            // Further refine by selected instruments. If no instrument is selected,
+            // the feed list stays filtered by Search Terms only.
+            if (instrumentTerms.length > 0) {
+                allowedTables = allowedTables.filter(meta =>
+                    instrumentTerms.some(inst => meta.instruments && meta.instruments.has(inst))
                 );
             }
 
@@ -1325,11 +1347,12 @@
             feedList.innerHTML = '';
 
             if (sortedCanonical.length === 0) {
-                const msg = searchMatchers.length > 0
-                    ? 'No feed solutions for the current Search Terms.'
+                const filtered = searchMatchers.length > 0 || instrumentTerms.length > 0;
+                const msg = filtered
+                    ? 'No feed solutions for the current Search Terms / Instrument filter.'
                     : 'No feed solutions found in DB.';
                 feedList.innerHTML = `<div class="text-sm text-slate-500 italic px-2">${msg}</div>`;
-                feedBtnText.innerText = searchMatchers.length > 0 ? 'No Matching Solutions' : 'No Solutions Found';
+                feedBtnText.innerText = filtered ? 'No Matching Solutions' : 'No Solutions Found';
                 return;
             }
 
