@@ -387,6 +387,7 @@
 
         // Does a cached table match the checked Feed Solution selection? (mirrors Analyze flow)
         function tableMetaFeedMatch(meta, checkedFeedEntries) {
+            if (meta.feedConflict) return false;
             return checkedFeedEntries.some(entry =>
                 meta.feedRaws.some(v => entry.raws.has(v)) &&
                 (entry.requireSecondPass === null || entry.requireSecondPass === meta.is2ndPass)
@@ -411,6 +412,86 @@
                 }
             }
             return out;
+        }
+
+        const INSTRUMENT_KEYS = Object.keys(INSTRUMENT_LABELS);
+
+        // Instruments named in the workbook/sheet title. Comparison sheets such as
+        // "..._vs_Nammu_Data" name another instrument without being run on it, so skip those.
+        function titleInstruments(tableName) {
+            const t = String(tableName).toLowerCase()
+                .replace(new RegExp(`vs[\\s_.]*(${INSTRUMENT_KEYS.join('|')})`, 'g'), ' ');
+            return new Set(INSTRUMENT_KEYS.filter(inst => t.includes(inst)));
+        }
+
+        // Which instrument(s) a sheet was run on. Priority:
+        //  1. The "Cross-flow system" cell — the field experimenters fill in for the instrument.
+        //  2. Instrument named in the title (sheets without that cell, e.g. Summary tabs).
+        //  3. Fallback: any column header / cell mentioning an instrument.
+        // Returns { instruments: Set, note: string|null } — note describes a title/cell disagreement.
+        function detectInstruments(tableName, columns, values) {
+            const fromCell = new Set();
+            let cellText = null;
+            outer:
+            for (let r = 0; r < values.length; r++) {
+                for (let c = 0; c + 1 < values[r].length; c++) {
+                    if (/cross[\s-]*flow\s*system/i.test(String(values[r][c]))) {
+                        cellText = String(values[r][c + 1]).trim();
+                        const lc = cellText.toLowerCase();
+                        INSTRUMENT_KEYS.forEach(inst => { if (lc.includes(inst)) fromCell.add(inst); });
+                        break outer;
+                    }
+                }
+            }
+
+            const fromTitle = titleInstruments(tableName);
+            if (fromCell.size) {
+                const agrees = fromTitle.size === 0 || [...fromCell].some(i => fromTitle.has(i));
+                const note = agrees ? null :
+                    `"Cross-flow system" cell says "${cellText}" but title says ${[...fromTitle].map(i => INSTRUMENT_LABELS[i]).join('/')} — using the cell`;
+                return { instruments: fromCell, note };
+            }
+            if (fromTitle.size) return { instruments: fromTitle, note: null };
+
+            const any = new Set();
+            const scan = (v) => {
+                const lc = String(v).toLowerCase();
+                INSTRUMENT_KEYS.forEach(inst => { if (lc.includes(inst)) any.add(inst); });
+            };
+            columns.forEach(scan);
+            values.forEach(row => row.forEach(scan));
+            return { instruments: any, note: null };
+        }
+
+        // NaCl concentrations (ppm) stated in a string: "35,000ppm NaCl", "2K ppm NaCl",
+        // and in table names "35_000ppm_NaCl" / "24_110_ppm_NaCl" (leading run date stripped first).
+        function naclConcentrations(str, isTableName = false) {
+            let s = String(str).toLowerCase();
+            if (isTableName) {
+                s = s.replace(/^(?:tbl)?_*(?:\d{4}_\d{1,2}_\d{1,2}|\d{1,2}_\d{1,2}_\d{2})_*/, ' ');
+                s = s.replace(/(^|\D)(\d{1,3})_(\d{3})(?!\d)/g, '$1$2$3');
+            }
+            s = s.replace(/(\d),(\d{3})(?!\d)/g, '$1$2');
+            const out = [];
+            const rx = /(\d+(?:\.\d+)?)[\s_]*(k)?[\s_]*ppm[\s_]*nacl/g;
+            let m;
+            while ((m = rx.exec(s)) !== null) out.push(parseFloat(m[1]) * (m[2] ? 1000 : 1));
+            return out;
+        }
+
+        // Detects sheets whose "Feed Solution" cell contradicts the NaCl concentration in the
+        // title (e.g. a "35_000ppm NaCl + 8_000 ppm MgSO4" workbook whose cell still says the
+        // template's "2000 ppm NaCl + 10 ppm NaOCl"). Returns the conflicting cell value, or null.
+        function feedTitleConflict(tableName, feedVals) {
+            const titleNums = naclConcentrations(tableName, true);
+            if (titleNums.length === 0) return null;
+            for (const v of feedVals) {
+                const cellNums = naclConcentrations(v);
+                if (cellNums.length === 0) continue;
+                const matches = cellNums.some(n => titleNums.some(t => Math.abs(n - t) <= 0.05 * Math.max(n, t)));
+                if (!matches) return v;
+            }
+            return null;
         }
 
         function getSelectedInstrumentLabel() {
@@ -773,7 +854,7 @@
             log(`\n--- Starting analysis for: '${searchTermsRaw}' ---`);
 
             try {
-                const tablesResult = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table';");
+                const tablesResult = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'nala_meta_%';");
                 if (tablesResult.length === 0) return;
 
                 const allTables = tablesResult[0].values.map(row => row[0]);
@@ -843,22 +924,11 @@
                     const values = dataResult[0].values; 
 
                     if (instrumentTerms.length > 0) {
-                        let isInstMatch = false;
-                        for (let c = 0; c < columns.length; c++) {
-                            let colStr = String(columns[c]).toLowerCase();
-                            if (instrumentTerms.some(inst => colStr.includes(inst))) { isInstMatch = true; break; }
-                        }
-                        if (!isInstMatch) {
-                            for (let r = 0; r < values.length; r++) {
-                                for (let c = 0; c < values[r].length; c++) {
-                                    let cellStr = String(values[r][c]).toLowerCase();
-                                    if (instrumentTerms.some(inst => cellStr.includes(inst))) { isInstMatch = true; break; }
-                                }
-                                if (isInstMatch) break;
-                            }
-                        }
-                        if (!isInstMatch) {
-                            log(`  -> SKIPPED: Requested instrument not found in sheet.`, "warn");
+                        const { instruments, note } = detectInstruments(tableName, columns, values);
+                        if (note) log(`  -> NOTE: ${note}.`, "warn");
+                        if (!instrumentTerms.some(inst => instruments.has(inst))) {
+                            const found = instruments.size ? [...instruments].map(i => INSTRUMENT_LABELS[i]).join('/') : 'none';
+                            log(`  -> SKIPPED: Instrument mismatch (sheet: ${found}).`, "warn");
                             continue;
                         }
                     }
@@ -874,6 +944,11 @@
                                     if (c + 1 < values[r].length) tableFeedVals.push(String(values[r][c+1]).trim());
                                 }
                             }
+                        }
+                        const conflictVal = feedTitleConflict(tableName, tableFeedVals);
+                        if (conflictVal) {
+                            log(`  -> SKIPPED: Feed Solution cell ("${conflictVal}") contradicts the NaCl concentration in the title.`, "warn");
+                            continue;
                         }
                         const tableIs2ndPass = /(2nd[\s_]*pass|second[\s_]*pass)/i.test(tableName);
                         const hasMatch = checkedFeedEntries.some(entry =>
@@ -1347,13 +1422,14 @@
 
         function populateFeedSolutions() {
             log("Scanning database to extract unique Feed Solutions...");
-            const tablesResult = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table';");
+            const tablesResult = dbInstance.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'nala_meta_%';");
             if (tablesResult.length === 0) return;
 
             const allTables = tablesResult[0].values.map(row => row[0]);
             tableMetaCache = [];
 
-            const instrumentKeys = Object.keys(INSTRUMENT_LABELS);
+            let instrumentNotes = 0;
+            let feedConflicts = 0;
 
             for (let tableName of allTables) {
                 const dataResult = dbInstance.exec(`SELECT * FROM "${tableName}"`);
@@ -1363,20 +1439,15 @@
 
                 let sheetSampleNames = [];
                 let feedRaws = [];
-                // Instruments detected on this sheet (matches the Analyze-flow instrument logic:
-                // scan column headers and every cell for any known instrument name).
-                const instruments = new Set();
+                // Instruments detected on this sheet (same logic as the Analyze flow).
+                const { instruments, note: instrumentNote } = detectInstruments(tableName, columns, values);
+                if (instrumentNote) instrumentNotes++;
                 // Pressure values (PSI) detected on this sheet. The label "Pressure (PSI)"
                 // lives at cell A18 with the value in the adjacent cell B18.
                 const pressures = new Set();
-                for (let c = 0; c < columns.length; c++) {
-                    const colLc = String(columns[c]).toLowerCase();
-                    instrumentKeys.forEach(inst => { if (colLc.includes(inst)) instruments.add(inst); });
-                }
                 for (let r = 0; r < values.length; r++) {
                     for (let c = 0; c < values[r].length; c++) {
                         const cellLc = String(values[r][c]).toLowerCase();
-                        instrumentKeys.forEach(inst => { if (cellLc.includes(inst)) instruments.add(inst); });
                         if (cellLc.includes('sample name')) {
                             for (let col = c + 1; col < values[r].length; col++) {
                                 const val = String(values[r][col]).trim();
@@ -1394,10 +1465,14 @@
                     }
                 }
 
+                const feedConflict = feedTitleConflict(tableName, feedRaws);
+                if (feedConflict) feedConflicts++;
+
                 tableMetaCache.push({
                     tableName,
                     searchHaystack: sheetSampleNames.length > 0 ? sheetSampleNames.join(' | ') : tableName,
                     feedRaws,
+                    feedConflict,
                     instruments,
                     pressures,
                     is2ndPass: /(2nd[\s_]*pass|second[\s_]*pass)/i.test(tableName)
@@ -1406,6 +1481,9 @@
 
             const totalRaw = tableMetaCache.reduce((s, m) => s + m.feedRaws.length, 0);
             log(`Background scan complete. Cached ${tableMetaCache.length} tables (${totalRaw} raw feed entries). Rendering dropdown...`, "success");
+            if (instrumentNotes || feedConflicts) {
+                log(`Metadata check: ${instrumentNotes} sheet(s) whose "Cross-flow system" cell disagrees with the instrument in the title (the cell is used); ${feedConflicts} sheet(s) whose Feed Solution cell contradicts the title (excluded when a Feed Solution filter is set).`, "warn");
+            }
             renderFeedDropdown();
         }
 
@@ -1438,6 +1516,7 @@
             // based on the source table's title.
             const canonicalMap = new Map();
             allowedTables.forEach(meta => {
+                if (meta.feedConflict) return; // cell contradicts title — don't advertise its value
                 meta.feedRaws.forEach(raw => {
                     let canonical = normalizeFeedSolution(raw);
                     let requireSecondPass = null;
